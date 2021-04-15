@@ -109,12 +109,14 @@ uint32_t deepQHead, deepQTail, oldDeepQHead;
 
 #ifndef NOCACHE
 long long cachesize ;
-struct cacheentry {
+typedef struct {
    uint16_t *p1, *p2, *p3 ;
    int abn, r ;
-} *totalCache ;
+} cacheentry;
 
-struct cacheentry **cache;
+cacheentry *totalCache;
+
+cacheentry **cache;
 #endif
 
 /*
@@ -282,7 +284,7 @@ void fasterTable() {
             nttable2[p++] = slowEvolveBit(row1, row2, row3, 0) ;
 }
 
-int evolveBit(int row1, int row2, int row3, int bshift) {
+int evolveBitShift(int row1, int row2, int row3, int bshift) {
    return nttable2[
       (((row1 << 6) >> bshift) & 0700) +
       (((row2 << 3) >> bshift) &  070) +
@@ -301,7 +303,7 @@ int evolveRow(int row1, int row2, int row3){
    int row1_s,row2_s,row3_s;
    int j,s = 0;
    if(params[P_SYMMETRY] == SYM_ODD) s = 1;
-   if(evolveBit(row1, row2, row3, width - 1)) return -1;
+   if(evolveBitShift(row1, row2, row3, width - 1)) return -1;
    if(params[P_SYMMETRY] == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2)) return -1;
    if(params[P_SYMMETRY] == SYM_ODD || params[P_SYMMETRY] == SYM_EVEN){
       row1_s = (row1 << 1) + ((row1 >> s) & 1);
@@ -314,7 +316,7 @@ int evolveRow(int row1, int row2, int row3){
       row3_s = (row3 << 1);
    }
    row4 = evolveBit(row1_s, row2_s, row3_s);
-   for(j = 1; j < width; j++)row4 += evolveBit(row1, row2, row3, j - 1) << j;
+   for(j = 1; j < width; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
    return row4;
 }
 
@@ -322,11 +324,11 @@ int evolveRowHigh(int row1, int row2, int row3, int bits){
    int row4=0;
    int row1_s,row2_s,row3_s;
    int j ;
-   if(evolveBit(row1, row2, row3, width - 1)) return -1;
+   if(evolveBitShift(row1, row2, row3, width - 1)) return -1;
    row1_s = (row1 << 1);
    row2_s = (row2 << 1);
    row3_s = (row3 << 1);
-   for(j = width-bits; j < width; j++)row4 += evolveBit(row1, row2, row3, j - 1) << j;
+   for(j = width-bits; j < width; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
    return row4;
 }
 
@@ -347,7 +349,7 @@ int evolveRowLow(int row1, int row2, int row3, int bits){
       row3_s = (row3 << 1);
    }
    row4 = evolveBit(row1_s, row2_s, row3_s);
-   for(j = 1; j < bits; j++)row4 += evolveBit(row1, row2, row3, j - 1) << j;
+   for(j = 1; j < bits; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
    return row4;
 }
 
@@ -373,17 +375,17 @@ uint16_t *getoffset(int row12) {
       r = makeRow(row12 >> width, row12 & ((1 << width) - 1)) ;
    return r ;
 }
-uint16_t *getoffset(int row1, int row2) {
+uint16_t *getoffset2(int row1, int row2) {
    return getoffset((row1 << width) + row2) ;
 }
 
-void getoffsetcount(int row1, int row2, int row3, uint16_t* &p, int &n) {
-   uint16_t *theRow = getoffset(row1, row2) ;
-   p = theRow + theRow[row3] ;
-   n = theRow[row3+1] - theRow[row3] ;
+void getoffsetcount(int row1, int row2, int row3, uint16_t **p, int *n) {
+   uint16_t *theRow = getoffset2(row1, row2) ;
+   *p = theRow + theRow[row3] ;
+   *n = theRow[row3+1] - theRow[row3] ;
 }
 int getcount(int row1, int row2, int row3) {
-   uint16_t *theRow = getoffset(row1, row2) ;
+   uint16_t *theRow = getoffset2(row1, row2) ;
    return theRow[row3+1] - theRow[row3] ;
 }
 int *gWorkConcat ;      /* gWorkConcat to be parceled out between threads */
@@ -1344,13 +1346,13 @@ int getkey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
       513 * abn ;
    h = h + (h >> 15) ;
    h &= (cachesize-1) ;
-   struct cacheentry &ce = cache[omp_get_thread_num()][h] ;
-   if (ce.p1 == p1 && ce.p2 == p2 && ce.p3 == p3 && ce.abn == abn)
-      return -2 + ce.r ;
-   ce.p1 = p1 ;
-   ce.p2 = p2 ;
-   ce.p3 = p3 ;
-   ce.abn = abn ;
+   cacheentry *ce = &(cache[omp_get_thread_num()][h]) ;
+   if (ce->p1 == p1 && ce->p2 == p2 && ce->p3 == p3 && ce->abn == abn)
+      return -2 + ce->r ;
+   ce->p1 = p1 ;
+   ce->p2 = p2 ;
+   ce->p3 = p3 ;
+   ce->abn = abn ;
    return h ;
 }
 
@@ -1756,7 +1758,7 @@ void loadState(){
    width          = loadInt(fp);
    period         = loadInt(fp);
    offset         = loadInt(fp);
-   mode           = (Mode)(loadInt(fp));
+   mode           = (enum Mode)(loadInt(fp));
    
    deepeningAmount = period; /* Currently redundant, since it's recalculated */
    aborting        = 0;
@@ -2234,9 +2236,9 @@ void searchSetup(){
       printf("Not enough memory to allocate lookahead cache\n");
       exit(0);
    }
-   totalCache = (struct cacheentry *)calloc(sizeof(cacheentry),
+   totalCache = (cacheentry *)calloc(sizeof(cacheentry),
          (cachesize + 5) * params[P_NUMTHREADS]) ;
-   cache = (struct cacheentry **)calloc(sizeof(**cache), params[P_NUMTHREADS]);
+   cache = (cacheentry **)calloc(sizeof(**cache), params[P_NUMTHREADS]);
    
    for(int i = 0; i < params[P_NUMTHREADS]; i++)
       cache[i] = totalCache + (cachesize + 5) * i;
