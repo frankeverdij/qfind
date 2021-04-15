@@ -16,7 +16,7 @@ CXXFLAGS = -O3 -fopenmp -march=native -Wall -I.
 CXX_LD = $(CXX)
 
 #gcc linker
-LD = $(CXX)
+LD = $(CC)
 
 # linker flags
 LDFLAGS = -fopenmp
@@ -25,10 +25,10 @@ LDFLAGS = -fopenmp
 EXE = qfind
 
 # list of all sources
-SOURCES = qfind.cpp
+SOURCES = qfind.c
 
 # list of all objects
-OBJECTS = $(SOURCES:.cpp=.o)
+OBJECTS = $(SOURCES:.c=.o)
 
 # Makefile
 all: qfind
