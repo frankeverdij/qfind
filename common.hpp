@@ -858,7 +858,12 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    
    /* normalize nrows to only include blank rows */
    nrows += MAXWIDTH;
-   while (srows[nrows-1] == 0 && ssrows[nrows-1] == 0 && nrows>0) nrows--;
+   while (nrows>0) {
+       if (srows[nrows-1] == 0 && ssrows[nrows-1] == 0)
+           nrows--;
+       else
+	   break;
+   }
    while (srows[0] == 0 && ssrows[0] == 0 && nrows>0) {
       srows++;
       ssrows++;
