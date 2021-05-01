@@ -104,7 +104,7 @@ int lookAhead(row *pRows, int a, int pPhase){
             
             for(ri23 = 0; ri23 < numRows23; ++ri23){
                row23 = riStart23[ri23];
-               uint16_t *p = getoffset2(row13, row23);
+               uint16_t *p = getoffset(row13, row23);
                for(ri22 = 0; ri22 < numRows22; ++ri22){
                   row22 = riStart22[ri22];
                   if (p[row22+1]!=p[row22]) {

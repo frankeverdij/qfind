@@ -376,25 +376,19 @@ void sortRows(uint16_t *theRow, uint32_t totalRows) {
 }
 uint16_t *makeRow(int row1, int row2) ;
 
-uint16_t *getoffset(int row12) {
-   uint16_t *r = gInd3[row12] ;
+uint16_t *getoffset(int row1, int row2) {
+   uint16_t *r = gInd3[(row1 << width) + row2] ;
    if (r == 0)
-      r = makeRow(row12 >> width, row12 & ((1 << width) - 1)) ;
+      r = makeRow(row1, row2) ;
    return r ;
-}
-uint16_t *getoffset2(int row1, int row2) {
-   return getoffset((row1 << width) + row2) ;
 }
 
 void getoffsetcount(int row1, int row2, int row3, uint16_t **p, int *n) {
-   uint16_t *theRow = getoffset2(row1, row2) ;
+   uint16_t *theRow = getoffset(row1, row2) ;
    *p = theRow + theRow[row3] ;
    *n = theRow[row3+1] - theRow[row3] ;
 }
-int getcount(int row1, int row2, int row3) {
-   uint16_t *theRow = getoffset2(row1, row2) ;
-   return theRow[row3+1] - theRow[row3] ;
-}
+
 int *gWorkConcat ;      /* gWorkConcat to be parceled out between threads */
 int *rowHash ;
 uint16_t *valorder ;
