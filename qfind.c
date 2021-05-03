@@ -6,15 +6,6 @@
 ** This is an attempt at combining the functionality of gfind and zfind.
 */
 
-/* Lookahead caching seems to speed up searches for spaceships with  */
-/* speeds exceeding c/5 and slow down searches for spaceships with   */
-/* speeds at or below c/5.  It is recommended that you compile two   */
-/* versions of this program, one unchanged and one with following    */
-/* line uncommented to disable lookahead caching.  You can then use  */
-/* the version of the program most appropriate for your input.       */
-
-//#define NOCACHE
-
 #include "common.hpp"
 
 int fwdOff[MAXPERIOD], backOff[MAXPERIOD], doubleOff[MAXPERIOD], tripleOff[MAXPERIOD];
@@ -182,7 +173,7 @@ void process(node theNode)
                if(params[P_LONGEST]) bufferPattern(qTail-1, NULL, 0, 0, 0);
                longest = currentDepth();
             }
-            if (terminal(qTail-1)) success(qTail-1, NULL, 0, 0);
+            if (terminal(qTail-1) && !terminal(PARENT(qTail-1))) success(qTail-1, NULL, 0, 0);
             setVisited(qTail - 1);
             if(deepRows[deepIndex][1] > deepRows[deepIndex][0]){
                deepRowIndices[deepQTail - 1] = 0;
@@ -209,7 +200,7 @@ void process(node theNode)
             if(params[P_LONGEST]) bufferPattern(qTail-1, NULL, 0, 0, 0);
             longest = currentDepth();
          }
-         if (terminal(qTail-1)) success(qTail-1, NULL, 0, 0);
+         if (terminal(qTail-1) && !terminal(PARENT(qTail-1))) success(qTail-1, NULL, 0, 0);
          setVisited(qTail - 1);
       }
    }

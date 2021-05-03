@@ -27,15 +27,16 @@
 #define STR(x) #x
 #define XSTR(x) STR(x)
 
-#define BANNER XSTR(WHICHPROGRAM)" v2.0 by Matthias Merzenich, 2 March 2021"
+#define BANNER XSTR(WHICHPROGRAM)" v2.1 by Matthias Merzenich, 3 May 2021"
 
-#define FILEVERSION ((unsigned long) 2021030201)  /* yyyymmddnn */
+#define FILEVERSION ((unsigned long) 2021050301)  /* yyyymmddnn */
 
 #define MAXPERIOD 30
 #define CHUNK_SIZE 64
 #define QBITS 20
 #define HASHBITS 20
 #define DEFAULT_DEPTHLIMIT (qBits-3)
+#define DEFAULT_CACHEMEM 32
 
 #define P_WIDTH 0
 #define P_PERIOD 1
@@ -914,8 +915,8 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
       oldnrows = nrows;
       oldsrows = (unsigned long*)realloc(oldsrows, sxsAllocRows * sizeof(unsigned long));
       oldssrows = (unsigned long*)realloc(oldssrows, sxsAllocRows * sizeof(unsigned long));
-      memcpy(oldsrows, sxsAllocData, sxsAllocRows * sizeof(unsigned long));
-      memcpy(oldssrows, sxsAllocData2, sxsAllocRows * sizeof(unsigned long));
+      memcpy(oldsrows, srows, nrows * sizeof(unsigned long));
+      memcpy(oldssrows, ssrows, nrows * sizeof(unsigned long));
    }
    
    /* Buffer output */
@@ -1347,6 +1348,9 @@ void doCompact()
 
 #ifndef NOCACHE
 int getkey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
+#ifndef QSIMPLE
+   if(params[P_CACHEMEM] == 0) return 0;
+#endif
    unsigned long long h = (unsigned long long)p1 +
       17 * (unsigned long long)p2 + 257 * (unsigned long long)p3 +
       513 * abn ;
@@ -1363,7 +1367,10 @@ int getkey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
 }
 
 void setkey(int h, int v) {
-   cache[omp_get_thread_num()][h].r = v ;
+#ifndef QSIMPLE
+   if(params[P_CACHEMEM])
+#endif
+      cache[omp_get_thread_num()][h].r = v ;
 }
 #endif
 
@@ -1534,7 +1541,7 @@ void usage(){
    printf("  -n NN  deepens to total depth at least NN during first deepening step\n");
    printf("         (total depth includes depth of BFS queue)\n");
    printf("  -g NN  stores depth-first extensions of length at least NN (default: 0)\n");
-   printf("  -f NN  stops search if NN ships are found (default: no limit)\n");
+   printf("  -f NN  stops search if NN spaceships are found (default: no limit)\n");
    printf("  -q NN  sets the BFS queue size to 2^NN (default: %d)\n",QBITS);
    printf("  -h NN  sets the hash table size to 2^NN (default: %d)\n",HASHBITS);
    printf("         Use -h 0 to disable duplicate elimination.\n");
@@ -1542,14 +1549,18 @@ void usage(){
    printf("  -b NN  groups 2^NN queue entries to an index node (default: 4)\n");
    printf("  -m NN  limits memory usage to NN megabytes (default: no limit)\n");
 #ifndef NOCACHE
-   printf("  -c NN  allocates NN megabytes per thread for lookahead cache (default: 32)\n");
+   printf("  -c NN  allocates NN megabytes per thread for lookahead cache\n");
+   printf("         (default: %d if speed is greater than c/5 and disabled otherwise)\n",DEFAULT_CACHEMEM);
+   printf("         Use -c 0 to disable lookahead caching.\n");
 #endif
-   printf("  -z     disables output during deepening step\n");
-   printf("         (useful for searches that find many spaceships)\n");
-   printf("  -a     Suppresses output of longest partial result at end of search\n");
+   printf("  -z     toggles whether to output spaceships found during deepening step\n");
+   printf("         (default: output enabled for spaceships found during deepening step)\n");
+   printf("         Disabling is useful for searches that find many spaceships.\n");
+   printf("  -a     toggles whether to output longest partial result at end of search\n");
+   printf("         (default: output enabled for longest partial result)\n");
    printf("\n");
    printf("  -e FF  uses rows in the file FF as the initial rows for the search\n");
-   printf("         (use the companion Golly python script to easily generate the\n");
+   printf("         (use the companion Golly Lua script to easily generate the\n");
    printf("         initial row file)\n");
    printf("  -d FF  dumps the search state after each queue compaction using\n");
    printf("         file name prefix FF\n");
@@ -1570,22 +1581,25 @@ void echoParams(){
    printf("Period: %d\n",params[P_PERIOD]);
    printf("Offset: %d\n",params[P_OFFSET]);
    printf("Width:  %d\n",params[P_WIDTH]);
-   if(params[P_SYMMETRY] == SYM_ASYM) printf("Symmetry: asymmetric\n");
-   else if(params[P_SYMMETRY] == SYM_ODD) printf("Symmetry: odd\n");
-   else if(params[P_SYMMETRY] == SYM_EVEN) printf("Symmetry: even\n");
-   else if(params[P_SYMMETRY] == SYM_GUTTER) printf("Symmetry: gutter\n");
-   if(params[P_CHECKPOINT]) printf("Dump state after queue compaction\n");
+   if (params[P_SYMMETRY] == SYM_ASYM) printf("Symmetry: asymmetric\n");
+   else if (params[P_SYMMETRY] == SYM_ODD) printf("Symmetry: odd\n");
+   else if (params[P_SYMMETRY] == SYM_EVEN) printf("Symmetry: even\n");
+   else if (params[P_SYMMETRY] == SYM_GUTTER) printf("Symmetry: gutter\n");
+   if (params[P_CHECKPOINT]) printf("Dump state after queue compaction\n");
    printf("Queue size: 2^%d\n",params[P_QBITS]);
    printf("Hash table size: 2^%d\n",params[P_HASHBITS]);
    printf("Minimum deepening increment: %d\n",MINDEEP);
-   if(params[P_PRINTDEEP] == 0)printf("Output disabled while deepening\n");
+   if (params[P_PRINTDEEP] == 0)printf("Output disabled while deepening\n");
 #ifndef NOCACHE
-   printf("Cache memory per thread: %d megabytes\n", params[P_CACHEMEM]);
+   if (params[P_CACHEMEM])
+      printf("Cache memory per thread: %d megabytes\n", params[P_CACHEMEM]);
+   else
+      printf("Lookahead caching disabled\n");
 #endif
-   if(params[P_MEMLIMIT] >= 0) printf("Memory limit: %d megabytes\n",params[P_MEMLIMIT]);
+   if (params[P_MEMLIMIT] >= 0) printf("Memory limit: %d megabytes\n",params[P_MEMLIMIT]);
    printf("Number of threads: %d\n",params[P_NUMTHREADS]);
-   if(params[P_MINEXTENSION]) printf("Save depth-first extensions of length at least %d\n",params[P_MINEXTENSION]);
-   if(params[P_LONGEST] == 0)printf("Printing of longest partial result disabled\n");
+   if (params[P_MINEXTENSION]) printf("Save depth-first extensions of length at least %d\n",params[P_MINEXTENSION]);
+   if (params[P_LONGEST] == 0) printf("Printing of longest partial result disabled\n");
 }
 
 /* ========================= */
@@ -1677,12 +1691,12 @@ void checkParams(){
       fprintf(stderr, "Warning: searches for speeds exceeding c/2 may not work correctly.\n");
    }
 #ifdef NOCACHE
-   if(5 * params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0){
-      fprintf(stderr, "Warning: Searches for speeds exceeding c/5 may be slower without caching.\n         It is recommended that you recompile with NOCACHE undefined.\n");
+   if(5 * params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0 && params[P_CACHEMEM] == 0){
+      fprintf(stderr, "Warning: Searches for speeds exceeding c/5 may be slower without caching.\n         It is recommended that you increase the cache memory (-c).\n");
    }
 #else
-   if(5 * params[P_OFFSET] <= params[P_PERIOD] && params[P_OFFSET] > 0){
-      fprintf(stderr, "Warning: Searches for speeds at or below c/5 may be slower with caching.\n         It is recommended that you recompile with NOCACHE defined.\n");
+   if(5 * params[P_OFFSET] <= params[P_PERIOD] && params[P_OFFSET] > 0 && params[P_CACHEMEM] > 0){
+      fprintf(stderr, "Warning: Searches for speeds at or below c/5 may be slower with caching.\n         It is recommended that you disable caching (-c 0).\n");
    }
 #endif
    
@@ -1899,7 +1913,7 @@ void setDefaultParams(){
    params[P_HASHBITS] = HASHBITS;
    params[P_NUMTHREADS] = 1;
    params[P_MINDEEP] = 0;
-   params[P_CACHEMEM] = 32;
+   params[P_CACHEMEM] = -1*DEFAULT_CACHEMEM;
    params[P_MEMLIMIT] = -1;
    params[P_PRINTDEEP] = 1;
    params[P_LONGEST] = 1;
@@ -1991,10 +2005,10 @@ void parseOptions(int argc, char *argv[]){
                sscanf(*++argv, "%d", &params[P_MINEXTENSION]);
                break;
             case 'z': case 'Z':
-               params[P_PRINTDEEP] = 0;
+               params[P_PRINTDEEP] ^= 1;
                break;
             case 'a': case 'A':
-               params[P_LONGEST] = 0;
+               params[P_LONGEST] ^= 1;
                break;
             case 'u': case 'U':
                previewFlag = 1;
@@ -2047,6 +2061,11 @@ void parseOptions(int argc, char *argv[]){
 }
 
 void searchSetup(){
+   if (params[P_CACHEMEM] < 0){
+      if (5 * params[P_OFFSET] > params[P_PERIOD]) params[P_CACHEMEM] *= -1;
+      else params[P_CACHEMEM] = 0;
+   }
+   
    checkParams();  /* Exit if parameters are invalid */
    
    if(loadDumpFlag) loadState();
