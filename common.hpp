@@ -489,9 +489,7 @@ uint16_t *makeRow(int row1, int row2) {
    uint16_t *theRow;
    #pragma omp critical(updateTable)
    {
-      theRow = bmalloc((1+(1<<width)+good)) ;
-      for (int row3=0; row3 < 1<<width; row3++)
-         theRow[row3] = 0 ;
+      theRow = (uint16_t*)calloc((1+(1<<width)+good), sizeof(uint16_t)) ;
       theRow[0] = 1 + (1 << width) ;
       for (int row3=0; row3 < good; row3++)
          theRow[gWork[row3]]++ ;
@@ -513,8 +511,9 @@ uint16_t *makeRow(int row1, int row2) {
          /* lookup table. This prevents two different threads from trying to */
          /* build the same part of the lookup table.                         */
          if (memcmp(theRow, gInd3[rowHash[h]], 2*(1+(1<<width)+good)) == 0) {
+            free(theRow);
             theRow = gInd3[rowHash[h]] ;
-            unbmalloc(1+(1<<width)+good) ;
+            /* unbmalloc(1+(1<<width)+good) ; */
             break ;
          }
          h = (h + 1) & ((2 << (2 * width)) - 1) ;
