@@ -391,7 +391,8 @@ void makeTables() {
    gcount = (uint32_t *)calloc(sizeof(*gcount), (1LL << width));
    memusage += (sizeof(*gInd3)+2*sizeof(int)) << (width*2) ;
    uint32_t i;
-   for(i = 0; i < 1 << width; ++i) causesBirth[i] = (evolveRow(i,0,0) ? 1 : 0);
+   for(i = 0; i < 1 << width; ++i)
+       causesBirth[i] = (evolveRow(i,0,0) ? 1 : 0);
 
    gWorkConcat = (int *)calloc(sizeof(int), (3LL*params[P_NUMTHREADS])<<width);
    if (params[P_REORDER] == 1)
@@ -448,24 +449,26 @@ uint16_t *makeRow(int row1, int row2) {
       gWork[good++] = row4 ;
    }
    
-   /* bmalloc, unbmalloc, and all operations that read or write to row, */
-   /* rowHash, and gInd3 must be included in a critical region.         */
-   uint16_t *theRow;
+   uint16_t *theRow = (uint16_t*)calloc((1+(1<<width)+good), sizeof(uint16_t)) ;
+   theRow[0] = 1 + (1 << width) ;
+   
+   for (int row3=0; row3 < good; row3++)
+      theRow[gWork[row3]]++ ;
+   theRow[1<<width] = 0 ;
+   for (int row3=0; row3 < (1<<width); row3++)
+      theRow[row3+1] += theRow[row3] ;
+   for (int row3=good-1; row3>=0; row3--) {
+      int row4 = gWork[row3] ;
+      theRow[--theRow[row4]] = gWork2[row3] ;
+   }
+
+   unsigned int h = hashRow(theRow, 1+(1<<width)+good) ;
+   h &= (2 << (2 * width)) - 1 ;
+
+   /* All operations that read or write to row,                 */
+   /* rowHash, and gInd3 must be included in a critical region. */
    #pragma omp critical(updateTable)
    {
-      theRow = (uint16_t*)calloc((1+(1<<width)+good), sizeof(uint16_t)) ;
-      theRow[0] = 1 + (1 << width) ;
-      for (int row3=0; row3 < good; row3++)
-         theRow[gWork[row3]]++ ;
-      theRow[1<<width] = 0 ;
-      for (int row3=0; row3 < (1<<width); row3++)
-         theRow[row3+1] += theRow[row3] ;
-      for (int row3=good-1; row3>=0; row3--) {
-         int row4 = gWork[row3] ;
-         theRow[--theRow[row4]] = gWork2[row3] ;
-      }
-      unsigned int h = hashRow(theRow, 1+(1<<width)+good) ;
-      h &= (2 << (2 * width)) - 1 ;
       while (1) {
          if (rowHash[h] == -1) {
             rowHash[h] = (row1 << width) + row2 ;
@@ -508,8 +511,6 @@ uint16_t *makeRow(int row1, int row2) {
 */
 void genStatCounts() {
    int *cnt = (int*)calloc((128 * sizeof(int)), 1LL << width) ;
-   for (int i=0; i<128<<width; i++)
-      cnt[i] = 0 ;
    int s = 0 ;
    if (params[P_SYMMETRY] == SYM_ODD)
       s = 2 ;
@@ -820,7 +821,7 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
        if (srows[nrows-1] == 0 && ssrows[nrows-1] == 0)
            nrows--;
        else
-	   break;
+           break;
    }
    while (srows[0] == 0 && ssrows[0] == 0 && nrows>0) {
       srows++;
