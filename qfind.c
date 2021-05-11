@@ -6,7 +6,7 @@
 ** This is an attempt at combining the functionality of gfind and zfind.
 */
 
-#include "common.hpp"
+#include "common.h"
 
 int fwdOff[MAXPERIOD], backOff[MAXPERIOD], doubleOff[MAXPERIOD], tripleOff[MAXPERIOD];
 

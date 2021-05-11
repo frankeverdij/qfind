@@ -166,6 +166,8 @@ cacheentry **cache;
 
 #define MINDEEP ((params[P_MINDEEP]>0) ? params[P_MINDEEP] : period)
 
+void insortRows(uint16_t *r, const uint32_t * const g, const uint32_t n);
+
 int gcd(int a, int b) {
    if (a > b) return gcd(b,a);
    else if (a == 0) return b;
@@ -361,20 +363,6 @@ int evolveRowLow(int row1, int row2, int row3, int bits){
    return row4;
 }
 
-void sortRows(uint16_t *theRow, uint32_t totalRows) {
-   uint32_t i;
-   int64_t j;
-   uint16_t t;
-   for(i = 1; i < totalRows; ++i){
-      t = theRow[i];
-      j = i - 1;
-      while(j >= 0 && gcount[theRow[j]] < gcount[t]){
-         theRow[j+1] = theRow[j];
-         --j;
-      }
-      theRow[j+1] = t;
-   }
-}
 uint16_t *makeRow(int row1, int row2) ;
 
 uint16_t *getoffset(int row1, int row2) {
@@ -418,7 +406,7 @@ void makeTables() {
    for (int i=0; i<1<<width; i++)
       valorder[i] = (1<<width)-1-i ;
    if (params[P_REORDER] != 0)
-      sortRows(valorder, 1<<width) ;
+      insortRows(valorder, gcount, 1<<width) ;
    for (int row2=0; row2<1<<width; row2++)
       makeRow(0, row2) ;
 }
