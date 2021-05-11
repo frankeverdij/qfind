@@ -386,15 +386,13 @@ void makeTables() {
    causesBirth = (unsigned char*)malloc((long long)sizeof(*causesBirth)<<width);
    gInd3 = (uint16_t **)calloc(sizeof(*gInd3),(1LL<<(width*2))) ;
    rowHash = (int *)calloc(sizeof(int),(2LL<<(width*2))) ;
-   for (int i=0; i<1<<(2*width); i++)
-      gInd3[i] = 0 ;
-   for (int i=0; i<2<<(2*width); i++)
-      rowHash[i] = -1 ;
+   memset(rowHash, -1, sizeof(int)*(2LL<<(width*2)));
+
    gcount = (uint32_t *)calloc(sizeof(*gcount), (1LL << width));
    memusage += (sizeof(*gInd3)+2*sizeof(int)) << (width*2) ;
    uint32_t i;
    for(i = 0; i < 1 << width; ++i) causesBirth[i] = (evolveRow(i,0,0) ? 1 : 0);
-   for(i = 0; i < 1 << width; ++i) gcount[i] = 0 ;
+
    gWorkConcat = (int *)calloc(sizeof(int), (3LL*params[P_NUMTHREADS])<<width);
    if (params[P_REORDER] == 1)
       genStatCounts() ;
@@ -410,29 +408,7 @@ void makeTables() {
    for (int row2=0; row2<1<<width; row2++)
       makeRow(0, row2) ;
 }
-uint16_t *bbuf ;
-int bbuf_left = 0 ;
-/* reduce fragmentation by allocating chunks larger than needed and */
-/* parceling out the small pieces.                                  */
-uint16_t *bmalloc(int siz) {
-   if (siz > bbuf_left) {
-      bbuf_left = 1 << (2 * width) ;
-      memusage += 2*bbuf_left ;
-      if (params[P_MEMLIMIT] >= 0 && memusage > memlimit) {
-         printf("Aborting due to excessive memory usage\n") ;
-         exit(0) ;
-      }
-      bbuf = (uint16_t *)calloc(sizeof(uint16_t), bbuf_left) ;
-   }
-   uint16_t *r = bbuf ;
-   bbuf += siz ;
-   bbuf_left -= siz ;
-   return r ;
-}
-void unbmalloc(int siz) {
-   bbuf -= siz ;
-   bbuf_left += siz ;
-}
+
 unsigned int hashRow(uint16_t *theRow, int siz) {
    unsigned int h = 0 ;
    for (int i=0; i<siz; i++)
