@@ -1535,7 +1535,9 @@ void usage(){
    printf("  -s FF  searches for spaceships with symmetry type FF\n");
    printf("         Valid symmetry types are asymmetric, odd, even, and gutter.\n");
    printf("\n");
+#ifdef _OPENMP
    printf("  -t NN  runs search using NN threads during deepening step (default: 1)\n");
+#endif
    printf("  -i NN  sets minimum deepening increment to NN (default: period)\n");
    printf("  -n NN  deepens to total depth at least NN during first deepening step\n");
    printf("         (total depth includes depth of BFS queue)\n");
@@ -1991,10 +1993,12 @@ void parseOptions(int argc, char *argv[]){
                --argc;
                sscanf(*++argv, "%d", &params[P_BASEBITS]);
                break;
+#ifdef _OPENMP
             case 't': case 'T':
                --argc;
                sscanf(*++argv, "%d", &params[P_NUMTHREADS]);
                break;
+#endif
             case 'f': case 'F':
                --argc;
                sscanf(*++argv, "%d", &params[P_NUMSHIPS]);
