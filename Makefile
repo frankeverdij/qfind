@@ -25,7 +25,7 @@ LDFLAGS = -fopenmp
 EXE = qfind
 
 # list of all sources
-SOURCES = qfind.c src/insort.c
+SOURCES = qfind.c src/insort.c src/parserule.c
 
 # list of all objects
 OBJECTS = $(SOURCES:.c=.o)
