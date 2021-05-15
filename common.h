@@ -168,6 +168,14 @@ cacheentry **cache;
 
 void insortRows(uint16_t *r, const uint32_t * const g, const uint32_t n);
 
+const char *parseRule(const char *rule, int *tab);
+
+void fasterTable(const int *table1, char *table2);
+int evolveBit(const int row1, const int row2, const int row3, const char *table);
+int evolveRow(const int row1, const int row2, const int row3, const char *table, const int wi, const int s);
+int evolveRowHigh(const int row1, const int row2, const int row3, const int bits, const char *table, const int wi);
+int evolveRowLow(const int row1, const int row2, const int row3, const int bits, const char *table, const int s);
+
 int gcd(int a, int b) {
    if (a > b) return gcd(b,a);
    else if (a == 0) return b;
@@ -181,95 +189,6 @@ void makePhases();
 unsigned char *causesBirth;
 
 char nttable2[512] ;
-
-void error(const char *s) {
-   fprintf(stderr, "%s\n", s) ;
-   exit(10) ;
-}
-
-int slowEvolveBit(int row1, int row2, int row3, int bshift){
-   return nttable[(((row2>>bshift) & 2)<<7) | (((row1>>bshift) & 2)<<6)
-                | (((row1>>bshift) & 4)<<4) | (((row2>>bshift) & 4)<<3)
-                | (((row3>>bshift) & 7)<<2) | (((row2>>bshift) & 1)<<1)
-                |  ((row1>>bshift) & 1)<<0];
-}
-
-void fasterTable() {
-   int p = 0 ;
-   for (int row1=0; row1<8; row1++)
-      for (int row2=0; row2<8; row2++)
-         for (int row3=0; row3<8; row3++)
-            nttable2[p++] = slowEvolveBit(row1, row2, row3, 0) ;
-}
-
-int evolveBitShift(int row1, int row2, int row3, int bshift) {
-   return nttable2[
-      (((row1 << 6) >> bshift) & 0700) +
-      (((row2 << 3) >> bshift) &  070) +
-      (( row3       >> bshift) &   07)] ;
-}
-
-int evolveBit(int row1, int row2, int row3) {
-   return nttable2[
-      ((row1 << 6) & 0700) +
-      ((row2 << 3) &  070) +
-      ( row3       &   07)] ;
-}
-
-int evolveRow(int row1, int row2, int row3){
-   int row4;
-   int row1_s,row2_s,row3_s;
-   int j,s = 0;
-   if(params[P_SYMMETRY] == SYM_ODD) s = 1;
-   if(evolveBitShift(row1, row2, row3, width - 1)) return -1;
-   if(params[P_SYMMETRY] == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2)) return -1;
-   if(params[P_SYMMETRY] == SYM_ODD || params[P_SYMMETRY] == SYM_EVEN){
-      row1_s = (row1 << 1) + ((row1 >> s) & 1);
-      row2_s = (row2 << 1) + ((row2 >> s) & 1);
-      row3_s = (row3 << 1) + ((row3 >> s) & 1);
-   }
-   else{
-      row1_s = (row1 << 1);
-      row2_s = (row2 << 1);
-      row3_s = (row3 << 1);
-   }
-   row4 = evolveBit(row1_s, row2_s, row3_s);
-   for(j = 1; j < width; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
-   return row4;
-}
-
-int evolveRowHigh(int row1, int row2, int row3, int bits){
-   int row4=0;
-   int row1_s,row2_s,row3_s;
-   int j ;
-   if(evolveBitShift(row1, row2, row3, width - 1)) return -1;
-   row1_s = (row1 << 1);
-   row2_s = (row2 << 1);
-   row3_s = (row3 << 1);
-   for(j = width-bits; j < width; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
-   return row4;
-}
-
-int evolveRowLow(int row1, int row2, int row3, int bits){
-   int row4;
-   int row1_s,row2_s,row3_s;
-   int j,s = 0;
-   if(params[P_SYMMETRY] == SYM_ODD) s = 1;
-   if(params[P_SYMMETRY] == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2)) return -1;
-   if(params[P_SYMMETRY] == SYM_ODD || params[P_SYMMETRY] == SYM_EVEN){
-      row1_s = (row1 << 1) + ((row1 >> s) & 1);
-      row2_s = (row2 << 1) + ((row2 >> s) & 1);
-      row3_s = (row3 << 1) + ((row3 >> s) & 1);
-   }
-   else{
-      row1_s = (row1 << 1);
-      row2_s = (row2 << 1);
-      row3_s = (row3 << 1);
-   }
-   row4 = evolveBit(row1_s, row2_s, row3_s);
-   for(j = 1; j < bits; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
-   return row4;
-}
 
 uint16_t *makeRow(int row1, int row2) ;
 
@@ -300,7 +219,7 @@ void makeTables() {
    memusage += (sizeof(*gInd3)+2*sizeof(int)) << (width*2) ;
    uint32_t i;
    for(i = 0; i < 1 << width; ++i)
-       causesBirth[i] = (evolveRow(i,0,0) ? 1 : 0);
+       causesBirth[i] = (evolveRow(i, 0, 0, nttable2, width, params[P_SYMMETRY]) ? 1 : 0);
 
    gWorkConcat = (int *)calloc(sizeof(int), (3LL*params[P_NUMTHREADS])<<width);
    if (params[P_REORDER] == 1)
@@ -333,17 +252,17 @@ uint16_t *makeRow(int row1, int row2) {
    int *gWork3 = gWork2 + (1 << width) ;
    if (width < 4) {
       for (int row3=0; row3<1<<width; row3++)
-         gWork3[row3] = evolveRow(row1, row2, row3) ;
+         gWork3[row3] = evolveRow(row1, row2, row3, nttable2, width, params[P_SYMMETRY]) ;
    } else {
       int lowbitcount = (width >> 1) + 1 ;
       int hibitcount = ((width + 1) >> 1) + 1 ;
       int hishift = lowbitcount - 2 ;
       int lowcount = 1 << lowbitcount ;
       for (int row3=0; row3<1<<lowbitcount; row3++)
-         gWork2[row3] = evolveRowLow(row1, row2, row3, lowbitcount-1) ;
+         gWork2[row3] = evolveRowLow(row1, row2, row3, lowbitcount-1, nttable2, params[P_SYMMETRY]);
       for (int row3=0; row3<1<<width; row3 += 1<<hishift)
          gWork2[lowcount+(row3>>hishift)] =
-                        evolveRowHigh(row1, row2, row3, hibitcount-1) ;
+                        evolveRowHigh(row1, row2, row3, hibitcount-1, nttable2, width);
       for (int row3=0; row3<1<<width; row3++)
          gWork3[row3] = gWork2[row3 & ((1<<lowbitcount) - 1)] |
                         gWork2[lowcount+(row3 >> hishift)] ;
@@ -430,7 +349,7 @@ void genStatCounts() {
    for (int row1=0; row1<2; row1++)
       for (int row2=0; row2<2; row2++)
          for (int row3=0; row3<2; row3++)
-            if (evolveBit(row1, row2, row3) == 0)
+            if (evolveBit(row1, row2, row3, nttable2) == 0)
                cnt[(1<<6) + (row1 << 4) + (row2 << 2) + row3]++ ;
    for (int nb=0; nb<width; nb++) {
       for (int row1=0; row1<8; row1++)
@@ -441,7 +360,7 @@ void genStatCounts() {
                       (((row2 >> s) ^ row2) & 1) ||
                       (((row3 >> s) ^ row3) & 1))
                      continue ;
-               int row4b = evolveBit(row1, row2, row3) ;
+               int row4b = evolveBit(row1, row2, row3, nttable2) ;
                for (int row4=0; row4<1<<nb; row4++)
                   cnt[(((((1<<nb) + row4) << 1) + row4b) << 6) +
                     ((row1 & 3) << 4) + ((row2 & 3) << 2) + (row3 & 3)] +=
@@ -454,7 +373,7 @@ void genStatCounts() {
       for (int row2=0; row2<4; row2++)
          for (int row3=0; row3<4; row3++)
             if (params[P_SYMMETRY] != SYM_ASYM ||
-                evolveBit(row1<<1, row2<<1, row3<<1) == 0)
+                evolveBit(row1<<1, row2<<1, row3<<1, nttable2) == 0)
                for (int row4=0; row4<1<<width; row4++)
                   gcount[row4] +=
                      cnt[(((1<<width) + row4) << 6) +
@@ -2152,7 +2071,7 @@ void searchSetup(){
 #ifndef QSIMPLE
    makePhases();
 #endif
-   fasterTable();
+   fasterTable(nttable, nttable2);
    makeTables();
    
    rephase();
