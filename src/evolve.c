@@ -34,13 +34,15 @@ int evolveBit(const int row1, const int row2, const int row3, const char *table)
 
 int evolveRow(const int row1, const int row2, const int row3, const char *table, const int wi, const int symmetry){
     int row4;
-    int row1_s,row2_s,row3_s;
+    int row1_s, row2_s, row3_s;
     int s = 0;
+    
     if (symmetry == SYM_ODD) s = 1;
     if (evolveBitShift(row1, row2, row3, wi - 1, table))
         return -1;
     if (symmetry == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2, table))
         return -1;
+        
     row1_s = (row1 << 1);
     row2_s = (row2 << 1);
     row3_s = (row3 << 1);
@@ -57,6 +59,7 @@ int evolveRow(const int row1, const int row2, const int row3, const char *table,
 
 int evolveRowHigh(const int row1, const int row2, const int row3, const int bits, const char *table, const int wi){
     int row4 = 0;
+    
     if (evolveBitShift(row1, row2, row3, wi - 1, table))
         return -1;
     for (int j = wi-bits; j < wi; j++)
@@ -68,6 +71,7 @@ int evolveRowLow(const int row1, const int row2, const int row3, const int bits,
     int row4;
     int row1_s,row2_s,row3_s;
     int s = 0;
+    
     if (symmetry == SYM_ODD) s = 1;
     if (symmetry == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2, table))
         return -1;
@@ -85,5 +89,4 @@ int evolveRowLow(const int row1, const int row2, const int row3, const int bits,
         row4 += evolveBitShift(row1, row2, row3, j - 1, table) << j;
     return row4;
 }
-
 
