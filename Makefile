@@ -34,11 +34,12 @@ OBJECTS = $(SOURCES:.c=.o)
 all: qfind
 qfind: $(OBJECTS)
 	$(LD) -o $(EXE) $(OBJECTS) $(LDFLAGS)
-%.o: %.c
+%.o: %.c common.hpp
 	$(CC) $(CFLAGS) -c $< -o $@
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 # Cleaning everything
+.PHONY : clean
 clean:
 	rm -f $(EXE) $(OBJECTS)
 # End
