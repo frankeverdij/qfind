@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdint.h>
+
 #define SYM_ASYM 1
 #define SYM_ODD 2
 #define SYM_EVEN 3
@@ -88,5 +91,57 @@ int evolveRowLow(const int row1, const int row2, const int row3, const int bits,
     for (int j = 1; j < bits; j++)
         row4 += evolveBitShift(row1, row2, row3, j - 1, table) << j;
     return row4;
+}
+
+/*
+**   We calculate the stats using a 2 * 64 << width array.  We use a
+**   leading 1 to separate them.  Index 1 aaa bb cc dd represents
+**   the count for a result of aaa when the last two bits of row1, row2,
+**   and row3 were bb, cc, and dd, respectively.  We have to manage
+**   the edge conditions appropriately.
+*/
+void genStatCounts(const int symmetry, const int wi, const char *table2, uint32_t *gc) {
+   int *cnt = (int*)calloc((128 * sizeof(int)), 1LL << wi) ;
+   int s = 0 ;
+   if (symmetry == SYM_ODD)
+      s = 2 ;
+   else if (symmetry == SYM_EVEN)
+      s = 1 ;
+   else
+      s = wi + 2 ;
+   /* left side: never permit generation left of row4 */
+   for (int row1=0; row1<2; row1++)
+      for (int row2=0; row2<2; row2++)
+         for (int row3=0; row3<2; row3++)
+            if (evolveBit(row1, row2, row3, table2) == 0)
+               cnt[(1<<6) + (row1 << 4) + (row2 << 2) + row3]++ ;
+   for (int nb=0; nb<wi; nb++) {
+      for (int row1=0; row1<8; row1++)
+         for (int row2=0; row2<8; row2++)
+            for (int row3=0; row3<8; row3++) {
+               if (nb == wi-1)
+                  if ((((row1 >> s) ^ row1) & 1) ||
+                      (((row2 >> s) ^ row2) & 1) ||
+                      (((row3 >> s) ^ row3) & 1))
+                     continue ;
+               int row4b = evolveBit(row1, row2, row3, table2) ;
+               for (int row4=0; row4<1<<nb; row4++)
+                  cnt[(((((1<<nb) + row4) << 1) + row4b) << 6) +
+                    ((row1 & 3) << 4) + ((row2 & 3) << 2) + (row3 & 3)] +=
+                     cnt[(((1<<nb) + row4) << 6) +
+                       ((row1 >> 1) << 4) + ((row2 >> 1) << 2) + (row3 >> 1)] ;
+            }
+   }
+   /* right side; check left, and accumulate into gcount (=gc) */
+   for (int row1=0; row1<4; row1++)
+      for (int row2=0; row2<4; row2++)
+         for (int row3=0; row3<4; row3++)
+            if (symmetry != SYM_ASYM ||
+                evolveBit(row1<<1, row2<<1, row3<<1, table2) == 0)
+               for (int row4=0; row4<1<<wi; row4++)
+                  gc[row4] +=
+                     cnt[(((1<<wi) + row4) << 6) +
+                       (row1 << 4) + (row2 << 2) + row3] ;
+   free(cnt) ;
 }
 
