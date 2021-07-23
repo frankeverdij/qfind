@@ -476,20 +476,6 @@ void bufRow(unsigned long rr, unsigned long r, int shift) {
    bufRLE('$');
 }
 
-int modeWidth() {
-   switch(mode) {
-      case asymmetric:
-         return width;
-      case odd:
-         return 2*width-1;
-      case even:
-         return 2*width;
-      case gutter:
-         return 2*width+1;
-   }
-   return 0;
-}
-
 /* Avoid Intel shift bug */
 static inline unsigned long
 safeShift(unsigned long r, int i)
