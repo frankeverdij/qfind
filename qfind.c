@@ -173,7 +173,7 @@ void process(node theNode)
                if(params[P_LONGEST]) bufferPattern(qTail-1, NULL, 0, 0, 0);
                longest = currentDepth();
             }
-            if (terminal(qTail-1) && !terminal(PARENT(qTail-1))) success(qTail-1, NULL, 0, 0);
+            if (terminal(qTail-1) && !terminal(PARENT(qTail-1))) successfulPattern(qTail-1, NULL, 0, 0);
             setVisited(qTail - 1);
             if(deepRows[deepIndex][1] > deepRows[deepIndex][0]){
                deepRowIndices[deepQTail - 1] = 0;
@@ -200,7 +200,7 @@ void process(node theNode)
             if(params[P_LONGEST]) bufferPattern(qTail-1, NULL, 0, 0, 0);
             longest = currentDepth();
          }
-         if (terminal(qTail-1) && !terminal(PARENT(qTail-1))) success(qTail-1, NULL, 0, 0);
+         if (terminal(qTail-1) && !terminal(PARENT(qTail-1))) successfulPattern(qTail-1, NULL, 0, 0);
          setVisited(qTail - 1);
       }
    }
@@ -336,7 +336,7 @@ int depthFirst(node theNode, uint16_t howDeep, uint16_t **pInd, int *pRemain, ro
          /* If we got here, then we found a spaceship! */
          #pragma omp critical(printWhileDeepening)
          {
-            success(theNode, pRows, startRow - 1, currRow + period - 1);
+            successfulPattern(theNode, pRows, startRow - 1, currRow + period - 1);
          }
          return 1;
       }

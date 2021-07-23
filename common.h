@@ -89,6 +89,13 @@ enum Mode {
    gutter,              /* orthogonal bilateral symmetry with empty column in middle */
 } mode;
 
+enum Dump {
+    unknown,
+    pending,
+    failure,
+    success,
+} dump;
+
 /* the big data structures */
 #define qBits params[P_QBITS]
 #define QSIZE (1<<qBits)
@@ -667,7 +674,7 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    return 1;
 }
 
-void success(node b, row *pRows, int nodeRow, uint32_t lastRow){
+void successfulPattern(node b, row *pRows, int nodeRow, uint32_t lastRow){
    if(bufferPattern(b, pRows, nodeRow, lastRow, 1))
       printf("\n%s\n",patternBuf);
    fflush(stdout);
@@ -811,10 +818,7 @@ int dumpNum = 1;
 char dumpFile[256];
 const char *dumpRoot = "dump";
 char loadDumpRoot[251];    /* used for loading dump root from file */
-int dumpFlag = 0;    /* Dump status flags, possible values follow */
-#define DUMPPENDING (1)
-#define DUMPFAILURE (2)
-#define DUMPSUCCESS (3)
+enum Dump dumpFlag = unknown;    /* Dump status flags, possible values follow */
 
 FILE * openDumpFile()
 {
@@ -835,7 +839,7 @@ void dumpState()
 {
    FILE * fp;
    uint32_t i,j;
-   dumpFlag = DUMPFAILURE;
+   dumpFlag = failure;
    if (!(fp = openDumpFile())) return;
    fprintf(fp,"%lu\n",FILEVERSION);
    fprintf(fp,"%s\n",rule);
@@ -871,7 +875,7 @@ void dumpState()
       }
    }
    fclose(fp);
-   dumpFlag = DUMPSUCCESS;
+   dumpFlag = success;
 }
 
 /* ================================= */
@@ -1063,7 +1067,7 @@ void doCompact()
       qTail--;
    
    doCompactPart1();
-   if (dumpFlag == DUMPPENDING) dumpState();
+   if (dumpFlag == pending) dumpState();
    doCompactPart2();
 }
 
@@ -1160,7 +1164,7 @@ static void deepen(){
    fflush(stdout);
    
    /* signal time for dump */
-   if (params[P_CHECKPOINT]) dumpFlag = DUMPPENDING;
+   if (params[P_CHECKPOINT]) dumpFlag = pending;
    
    doCompact();
    
@@ -1171,7 +1175,7 @@ static void deepen(){
    printf("\n");
    
    /* Report successful/unsuccessful dump */
-   if (dumpFlag == DUMPSUCCESS)
+   if (dumpFlag == success)
    {
 #ifdef PATCH07
       timeStamp();
@@ -1183,7 +1187,7 @@ static void deepen(){
        else
            printf("[%d/-]\n",chainDepth);*/
    }
-   else if (dumpFlag == DUMPFAILURE)
+   else if (dumpFlag == failure)
    {
 #ifdef PATCH07
       timeStamp();
@@ -1345,12 +1349,12 @@ static void preview(int allPhases) {
    
    while (j>=i && !aborting) {
       if (!EMPTY(j)) {
-         success(j, NULL, 0, 0);
+         successfulPattern(j, NULL, 0, 0);
          if (allPhases == 0) {
             k=j;
             for (ph = 1; ph < period; ph++) {
                k=PARENT(k);
-               success(k, NULL, 0, 0);
+               successfulPattern(k, NULL, 0, 0);
             }
          }
       }
@@ -1860,14 +1864,14 @@ void searchSetup(){
       printf("\n");
       
       if(!loadDumpFlag || qHead == 0 || splitNum == 1){
-         dumpFlag = DUMPPENDING;
+         dumpFlag = pending;
          if(qHead == 0){      /* can't use doCompact() here, because it tries to access rows[-1] */
             qStart = qHead;
             qEnd = qTail;
             dumpState();
          }
          else doCompact();
-         if(dumpFlag == DUMPSUCCESS){
+         if(dumpFlag == success){
             printf("State dumped to %s\n",dumpFile);
             exit(0);
          }
@@ -1944,12 +1948,12 @@ void searchSetup(){
          }
          
          /* save the piece */
-         dumpFlag = DUMPPENDING;
+         dumpFlag = pending;
          doCompact();
          
          if(!firstDumpNum) firstDumpNum = dumpNum - 1;
          
-         if (dumpFlag != DUMPSUCCESS){
+         if (dumpFlag != success){
             printf("Failed to save %s\n",dumpFile);
             exit(1);
          }
