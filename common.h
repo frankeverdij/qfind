@@ -183,11 +183,7 @@ int evolveRow(const int row1, const int row2, const int row3, const char *table,
 int evolveRowHigh(const int row1, const int row2, const int row3, const int bits, const char *table, const int wi);
 int evolveRowLow(const int row1, const int row2, const int row3, const int bits, const char *table, const int s);
 
-int gcd(int a, int b) {
-   if (a > b) return gcd(b,a);
-   else if (a == 0) return b;
-   else return gcd(b-a,a);
-}
+int gcd(int a, int b);
 
 #ifndef QSIMPLE
 void makePhases();
