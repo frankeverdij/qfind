@@ -18,6 +18,8 @@
 
 #include <time.h>
 
+#include "const.h"
+
 #ifdef QSIMPLE
    #define WHICHPROGRAM qfind-simple
 #else
@@ -31,39 +33,8 @@
 
 #define FILEVERSION ((unsigned long) 2021050301)  /* yyyymmddnn */
 
-#define MAXPERIOD 30
-#define CHUNK_SIZE 64
-#define QBITS 20
-#define HASHBITS 20
 #define DEFAULT_DEPTHLIMIT (qBits-3)
 #define DEFAULT_CACHEMEM 32
-
-#define P_WIDTH 0
-#define P_PERIOD 1
-#define P_OFFSET 2
-#define P_SYMMETRY 3
-#define P_REORDER 4
-#define P_CHECKPOINT 5
-#define P_BASEBITS 6
-#define P_QBITS 7
-#define P_HASHBITS 8 
-#define P_DEPTHLIMIT 9 
-#define P_NUMTHREADS 10
-#define P_MINDEEP 11
-#define P_MEMLIMIT 12
-#define P_CACHEMEM 13
-#define P_PRINTDEEP 14
-#define P_LONGEST 15
-#define P_LASTDEEP 16
-#define P_NUMSHIPS 17
-#define P_MINEXTENSION 18
-
-#define NUM_PARAMS 19
-
-#define SYM_ASYM 1
-#define SYM_ODD 2
-#define SYM_EVEN 3
-#define SYM_GUTTER 4
 
 const char *rule = "B3/S23";
 char loadRule[256]; /* used for loading rule from file */
@@ -157,8 +128,6 @@ cacheentry **cache;
 ** PARENT(b) returns the index of the parent of b
 */
 
-#define MAXWIDTH (14)
-
 #define ROWBITS ((1<<width)-1)
 #define BASEBITS (params[P_BASEBITS])
 #define BASEFACTOR (1<<BASEBITS)
@@ -174,8 +143,6 @@ cacheentry **cache;
 #define MINDEEP ((params[P_MINDEEP]>0) ? params[P_MINDEEP] : period)
 
 void insortRows(uint16_t *r, const uint32_t * const g, const uint32_t n);
-
-const char *parseRule(const char *rule, int *tab);
 
 void fasterTable(const int *table1, char *table2);
 int evolveBit(const int row1, const int row2, const int row3, const char *table);
@@ -1368,74 +1335,6 @@ int previewFlag = 0;
 int initRowsFlag = 0;
 int newLastDeep = 0;
 
-void checkParams(){
-   int exitFlag = 0;
-   const char *ruleError;
-   
-   /* Errors */
-   ruleError = parseRule(rule, nttable);
-   if (ruleError != 0){
-      fprintf(stderr, "Error: failed to parse rule %s\n", rule);
-      fprintf(stderr, "       %s\n", ruleError);
-      exitFlag = 1;
-   }
-#ifdef QSIMPLE
-   if(gcd(PERIOD,OFFSET) > 1){
-      fprintf(stderr, "Error: qfind-s does not support gcd(PERIOD,OFFSET) > 1. Use qfind instead.\n");
-      exitFlag = 1;
-   }
-#else
-   if(params[P_WIDTH] < 1 || params[P_PERIOD] < 1 || params[P_OFFSET] < 1){
-      fprintf(stderr, "Error: period (-p), translation (-y), and width (-w) must be positive integers.\n");
-      exitFlag = 1;
-   }
-   if(params[P_PERIOD] > MAXPERIOD){
-      fprintf(stderr, "Error: maximum allowed period (%d) exceeded.\n", MAXPERIOD);
-      exitFlag = 1;
-   }
-   if(params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0){
-      fprintf(stderr, "Error: translation (-y) cannot exceed period (-p).\n");
-      exitFlag = 1;
-   }
-   if(params[P_OFFSET] == params[P_PERIOD] && params[P_PERIOD] > 0){
-      fprintf(stderr, "Error: photons are not supported.\n");
-      exitFlag = 1;
-   }
-#endif
-   if(params[P_SYMMETRY] == 0){
-      fprintf(stderr, "Error: you must specify a symmetry type (-s).\n");
-      exitFlag = 1;
-   }
-   if(previewFlag && !loadDumpFlag){
-      fprintf(stderr, "Error: the search state must be loaded from a file to preview partial results.\n");
-      exitFlag = 1;
-   }
-   if(initRowsFlag && loadDumpFlag){
-      fprintf(stderr, "Error: Initial rows file cannot be used when the search state is loaded from a\n       saved state.\n");
-      exitFlag = 1;
-   }
-   
-   /* Warnings */
-   if(2 * params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0){
-      fprintf(stderr, "Warning: searches for speeds exceeding c/2 may not work correctly.\n");
-   }
-#ifdef NOCACHE
-   if(5 * params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0 && params[P_CACHEMEM] == 0){
-      fprintf(stderr, "Warning: Searches for speeds exceeding c/5 may be slower without caching.\n         It is recommended that you increase the cache memory (-c).\n");
-   }
-#else
-   if(5 * params[P_OFFSET] <= params[P_PERIOD] && params[P_OFFSET] > 0 && params[P_CACHEMEM] > 0){
-      fprintf(stderr, "Warning: Searches for speeds at or below c/5 may be slower with caching.\n         It is recommended that you disable caching (-c 0).\n");
-   }
-#endif
-   
-   /* exit if there are errors */
-   if(exitFlag){
-      fprintf(stderr, "\nUse --help for a list of available options.\n");
-      exit(1);
-   }
-   fprintf(stderr, "\n");
-}
 
 /* ============================ */
 /*  Load saved state from file  */
@@ -1797,7 +1696,7 @@ void searchSetup(){
       else params[P_CACHEMEM] = 0;
    }
    
-   checkParams();  /* Exit if parameters are invalid */
+   checkParams(rule, nttable, params, previewFlag, initRowsFlag, loadDumpFlag);  /* Exit if parameters are invalid */
    
    if(loadDumpFlag) loadState();
    else {

@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "const.h"
+
 /* =========================================== */
 /*  Lookup tables to determine successor rows  */
 /* =========================================== */
@@ -35,6 +39,7 @@ const char *rulekeys[] = {
    "4r", "5n", "5c", "6c", "5q", "6k", "6n", "7c",
    "4a", "5a", "5n", "6a", "5j", "6e", "6k", "7e",
    "5i", "6a", "6c", "7c", "6a", "7e", "7c", "8" } ;
+   
 /*
  *   Parses the rule.  If there's an error, return a string describing the
  *   error.  Fills in the 512-element array pointed to by tab.
@@ -88,5 +93,74 @@ const char *parseRule(const char *rule, int *tab) {
       }
    }
    return 0 ;
+}
+
+void checkParams(const char *rule, int *tab, const int *params, const int pf, const int irf, const int ldf){
+   int exitFlag = 0;
+   const char *ruleError;
+   
+   /* Errors */
+   ruleError = parseRule(rule, tab);
+   if (ruleError != 0){
+      fprintf(stderr, "Error: failed to parse rule %s\n", rule);
+      fprintf(stderr, "       %s\n", ruleError);
+      exitFlag = 1;
+   }
+#ifdef QSIMPLE
+   if(gcd(PERIOD,OFFSET) > 1){
+      fprintf(stderr, "Error: qfind-s does not support gcd(PERIOD,OFFSET) > 1. Use qfind instead.\n");
+      exitFlag = 1;
+   }
+#else
+   if(params[P_WIDTH] < 1 || params[P_PERIOD] < 1 || params[P_OFFSET] < 1){
+      fprintf(stderr, "Error: period (-p), translation (-y), and width (-w) must be positive integers.\n");
+      exitFlag = 1;
+   }
+   if(params[P_PERIOD] > MAXPERIOD){
+      fprintf(stderr, "Error: maximum allowed period (%d) exceeded.\n", MAXPERIOD);
+      exitFlag = 1;
+   }
+   if(params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0){
+      fprintf(stderr, "Error: translation (-y) cannot exceed period (-p).\n");
+      exitFlag = 1;
+   }
+   if(params[P_OFFSET] == params[P_PERIOD] && params[P_PERIOD] > 0){
+      fprintf(stderr, "Error: photons are not supported.\n");
+      exitFlag = 1;
+   }
+#endif
+   if(params[P_SYMMETRY] == 0){
+      fprintf(stderr, "Error: you must specify a symmetry type (-s).\n");
+      exitFlag = 1;
+   }
+   if(pf && !ldf){
+      fprintf(stderr, "Error: the search state must be loaded from a file to preview partial results.\n");
+      exitFlag = 1;
+   }
+   if(irf && ldf){
+      fprintf(stderr, "Error: Initial rows file cannot be used when the search state is loaded from a\n       saved state.\n");
+      exitFlag = 1;
+   }
+   
+   /* Warnings */
+   if(2 * params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0){
+      fprintf(stderr, "Warning: searches for speeds exceeding c/2 may not work correctly.\n");
+   }
+#ifdef NOCACHE
+   if(5 * params[P_OFFSET] > params[P_PERIOD] && params[P_PERIOD] > 0 && params[P_CACHEMEM] == 0){
+      fprintf(stderr, "Warning: Searches for speeds exceeding c/5 may be slower without caching.\n         It is recommended that you increase the cache memory (-c).\n");
+   }
+#else
+   if(5 * params[P_OFFSET] <= params[P_PERIOD] && params[P_OFFSET] > 0 && params[P_CACHEMEM] > 0){
+      fprintf(stderr, "Warning: Searches for speeds at or below c/5 may be slower with caching.\n         It is recommended that you disable caching (-c 0).\n");
+   }
+#endif
+   
+   /* exit if there are errors */
+   if(exitFlag){
+      fprintf(stderr, "\nUse --help for a list of available options.\n");
+      exit(1);
+   }
+   fprintf(stderr, "\n");
 }
 
