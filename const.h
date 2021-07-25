@@ -1,9 +1,15 @@
+#ifndef CONST_H
+#define CONST_H
+
+#define FILEVERSION ((unsigned long) 2021050301)  /* yyyymmddnn */
+
 #define MAXWIDTH (14)
 
 #define MAXPERIOD 30
 #define CHUNK_SIZE 64
 #define QBITS 20
 #define HASHBITS 20
+#define DEFAULT_CACHEMEM 32
 
 #define P_WIDTH 0
 #define P_PERIOD 1
@@ -32,3 +38,4 @@
 #define SYM_EVEN 3
 #define SYM_GUTTER 4
 
+#endif /* CONST_H */

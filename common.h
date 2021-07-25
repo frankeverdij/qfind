@@ -19,6 +19,8 @@
 #include <time.h>
 
 #include "const.h"
+#include "enum.h"
+#include "load.h"
 
 #ifdef QSIMPLE
    #define WHICHPROGRAM qfind-simple
@@ -31,13 +33,7 @@
 
 #define BANNER XSTR(WHICHPROGRAM)" v2.1 by Matthias Merzenich, 3 May 2021"
 
-#define FILEVERSION ((unsigned long) 2021050301)  /* yyyymmddnn */
-
 #define DEFAULT_DEPTHLIMIT (qBits-3)
-#define DEFAULT_CACHEMEM 32
-
-const char *rule = "B3/S23";
-char loadRule[256]; /* used for loading rule from file */
 
 char *initRows;
 
@@ -54,18 +50,8 @@ int aborting;
 int numFound = 0;       /* number of spaceships found so far */
 int longest = 0;        /* length of current longest partial result */
 
-enum Mode {
-   asymmetric,          /* basic orthogonal pattern */
-   odd, even,           /* orthogonal with bilateral symmetry */
-   gutter,              /* orthogonal bilateral symmetry with empty column in middle */
-} mode;
-
-enum Dump {
-    unknown,
-    pending,
-    failure,
-    success,
-} dump;
+Mode mode;
+Dump dump;
 
 /* the big data structures */
 #define qBits params[P_QBITS]
@@ -149,7 +135,7 @@ int evolveBit(const int row1, const int row2, const int row3, const char *table)
 int evolveRow(const int row1, const int row2, const int row3, const char *table, const int wi, const int s);
 int evolveRowHigh(const int row1, const int row2, const int row3, const int bits, const char *table, const int wi);
 int evolveRowLow(const int row1, const int row2, const int row3, const int bits, const char *table, const int s);
-
+void checkParams(const char *rule, int *tab, const int *params, const int pf, const int irf, const int ldf);
 int gcd(int a, int b);
 
 #ifndef QSIMPLE
@@ -158,6 +144,8 @@ void makePhases();
 
 unsigned char *causesBirth;
 
+char rule[256] = "B3/S23";
+char dumpRoot[256] = "dump";
 char nttable2[512] ;
 
 uint16_t *makeRow(int row1, int row2) ;
@@ -778,10 +766,9 @@ static inline int qTop() { return qTail - 1; }
 /* =================== */
 
 int dumpNum = 1;
-char dumpFile[256];
-const char *dumpRoot = "dump";
-char loadDumpRoot[251];    /* used for loading dump root from file */
-enum Dump dumpFlag = unknown;    /* Dump status flags, possible values follow */
+char dumpFile[512];
+
+Dump dumpFlag = unknown;    /* Dump status flags, possible values follow */
 
 FILE * openDumpFile()
 {
@@ -1197,77 +1184,6 @@ void saveDepthFirst(node theNode, uint16_t startRow, uint16_t howDeep, row *pRow
    deepRowIndices[deepQHead + theNode - qHead] = theDeepIndex;
 }
 
-/* ========================== */
-/*  Print usage instructions  */
-/* ========================== */
-
-/* Note: currently reserving -v for potentially editing an array of extra variables */
-void usage(){
-#ifndef QSIMPLE
-   printf("Usage: \"qfind options\"\n");
-   printf("  e.g. \"qfind -r B3/S23 -p 3 -y 1 -w 6 -s even\" searches Life (rule B3/S23)\n");
-   printf("  for c/3 orthogonal spaceships with even bilateral symmetry and a\n");
-   printf("  logical width of 6 (full width 12).\n");
-#else
-   printf("Three required parameters, the period, offset, and width, must be\n");
-   printf("set within the code before it is compiled. You have compiled with\n");
-   printf("\n");
-   printf("Period: %d\n",PERIOD);
-   printf("Offset: %d\n",OFFSET);
-   printf("Width:  %d\n",WIDTH);
-#endif
-   printf("\n");
-   printf("Available options:\n");
-   printf("  -r bNN/sNN  searches for spaceships in the specified rule (default: b3/s23)\n");
-   printf("              Non-totalistic rules can be entered using Hensel notation.\n");
-   printf("\n");
-#ifndef QSIMPLE
-   printf("  -p NN  searches for spaceships with period NN\n");
-   printf("  -y NN  searches for spaceships that travel NN cells every period\n");
-   printf("  -w NN  searches for spaceships with logical width NN\n");
-   printf("         (full width depends on symmetry type)\n");
-#endif
-   printf("  -s FF  searches for spaceships with symmetry type FF\n");
-   printf("         Valid symmetry types are asymmetric, odd, even, and gutter.\n");
-   printf("\n");
-#ifdef _OPENMP
-   printf("  -t NN  runs search using NN threads during deepening step (default: 1)\n");
-#endif
-   printf("  -i NN  sets minimum deepening increment to NN (default: period)\n");
-   printf("  -n NN  deepens to total depth at least NN during first deepening step\n");
-   printf("         (total depth includes depth of BFS queue)\n");
-   printf("  -g NN  stores depth-first extensions of length at least NN (default: 0)\n");
-   printf("  -f NN  stops search if NN spaceships are found (default: no limit)\n");
-   printf("  -q NN  sets the BFS queue size to 2^NN (default: %d)\n",QBITS);
-   printf("  -h NN  sets the hash table size to 2^NN (default: %d)\n",HASHBITS);
-   printf("         Use -h 0 to disable duplicate elimination.\n");
-
-   printf("  -b NN  groups 2^NN queue entries to an index node (default: 4)\n");
-   printf("  -m NN  limits memory usage to NN megabytes (default: no limit)\n");
-#ifndef NOCACHE
-   printf("  -c NN  allocates NN megabytes per thread for lookahead cache\n");
-   printf("         (default: %d if speed is greater than c/5 and disabled otherwise)\n",DEFAULT_CACHEMEM);
-   printf("         Use -c 0 to disable lookahead caching.\n");
-#endif
-   printf("  -z     toggles whether to output spaceships found during deepening step\n");
-   printf("         (default: output enabled for spaceships found during deepening step)\n");
-   printf("         Disabling is useful for searches that find many spaceships.\n");
-   printf("  -a     toggles whether to output longest partial result at end of search\n");
-   printf("         (default: output enabled for longest partial result)\n");
-   printf("\n");
-   printf("  -e FF  uses rows in the file FF as the initial rows for the search\n");
-   printf("         (use the companion Golly Lua script to easily generate the\n");
-   printf("         initial row file)\n");
-   printf("  -d FF  dumps the search state after each queue compaction using\n");
-   printf("         file name prefix FF\n");
-   printf("  -l FF  loads the search state from the file FF\n");
-   printf("  -j NN  splits the search state into at most NN files\n");
-   printf("         (uses the file name prefix defined by the -d option)\n");
-   printf("  -u     previews partial results from the loaded state\n");
-   printf("\n");
-   printf("  --help  prints usage instructions and exits\n");
-}
-
 /* ======================== */
 /*  Echo loaded parameters  */
 /* ======================== */
@@ -1342,71 +1258,23 @@ int newLastDeep = 0;
 
 char * loadFile;
 
-void loadFail()
-{
-    printf("Load from file %s failed\n",loadFile);
-    exit(1);
-}
-
-signed int loadInt(FILE *fp)
-{
-    signed int v;
-    if (fscanf(fp,"%d\n",&v) != 1) loadFail();
-    return v;
-}
-
-unsigned int loadUInt(FILE *fp)
-{
-    unsigned int v;
-    if (fscanf(fp,"%u\n",&v) != 1) loadFail();
-    return v;
-}
-
-void loadParams() {
-   FILE * fp;
-   int i;
-   
-   /* reset flag to prevent modification of params[P_LASTDEEP] at start of search */
-   newLastDeep = 0;
-   
-   fp = fopen(loadFile, "r");
-   if (!fp) loadFail();
-   if (loadUInt(fp) != FILEVERSION)
-   {
-      printf("Incompatible file version\n");
-      exit(1);
-   }
-   
-   /* Load rule */
-   if (fscanf(fp,"%255s\n",loadRule) != 1) loadFail();
-   rule = loadRule;
-   
-   /* Load dump root */
-   if (fscanf(fp,"%250s\n",loadDumpRoot) != 1) loadFail();
-   dumpRoot = loadDumpRoot;
-   
-   /* Load parameters */
-   for (i = 0; i < NUM_PARAMS; ++i)
-      params[i] = loadInt(fp);
-}
-
-void loadState(){
+void loadState(char * loadFile){
    FILE * fp;
    uint32_t i, j;
    
    fp = fopen(loadFile, "r");
-   if (!fp) loadFail();
+   if (!fp) loadFail(loadFile);
    
-   loadUInt(fp);                                   /* skip file version */
-   fscanf(fp, "%*[^\n]\n");                        /* skip rule */
-   fscanf(fp, "%*[^\n]\n");                        /* skip dump root */
-   for (i = 0; i < NUM_PARAMS; ++i) loadInt(fp);   /* skip parameters */
+   loadUInt(fp, loadFile);                                 /* skip file version */
+   fscanf(fp, "%*[^\n]\n");                                /* skip rule */
+   fscanf(fp, "%*[^\n]\n");                                /* skip dump root */
+   for (i = 0; i < NUM_PARAMS; ++i) loadInt(fp, loadFile); /* skip parameters */
    
    /* Load / initialise globals */
-   width          = loadInt(fp);
-   period         = loadInt(fp);
-   offset         = loadInt(fp);
-   mode           = (enum Mode)(loadInt(fp));
+   width          = loadInt(fp, loadFile);
+   period         = loadInt(fp, loadFile);
+   offset         = loadInt(fp, loadFile);
+   mode           = (Mode)(loadInt(fp, loadFile));
    
    deepeningAmount = period; /* Currently redundant, since it's recalculated */
    aborting        = 0;
@@ -1429,8 +1297,8 @@ void loadState(){
    }
    
    /* Load up BFS queue and complete compaction */
-   qHead  = loadUInt(fp);
-   qEnd   = loadUInt(fp);
+   qHead  = loadUInt(fp, loadFile);
+   qEnd   = loadUInt(fp, loadFile);
    qStart = QSIZE - qEnd;
    qEnd   = QSIZE;
    qHead += qStart;
@@ -1439,7 +1307,7 @@ void loadState(){
       exit(0);
    }
    for (i = qStart; i < qEnd; ++i)
-      rows[i] = (row) loadUInt(fp);
+      rows[i] = (row) loadUInt(fp, loadFile);
    
    /*
    printf("qHead:  %d qStart: %d qEnd: %d\n",qHead,qStart,qEnd);
@@ -1468,7 +1336,7 @@ void loadState(){
       deepRows[theDeepIndex] = (row*)calloc( j + 1 + 2, sizeof(**deepRows));
       deepRows[theDeepIndex][0] = j;
       for (i = 1; i < j + 1 + 2; ++i){
-         deepRows[theDeepIndex][i] = loadUInt(fp);
+         deepRows[theDeepIndex][i] = loadUInt(fp, loadFile);
       }
       deepRowIndices[deepQTail] = theDeepIndex;
       ++theDeepIndex;
@@ -1495,7 +1363,7 @@ void printRow(row theRow){
    printf("\n");
 }
 
-void loadInitRows(char * file){
+void loadInitRows(char * loadFile, char * file){
    FILE * fp;
    int i,j;
    char rowStr[MAXWIDTH];
@@ -1503,7 +1371,7 @@ void loadInitRows(char * file){
    
    loadFile = file;
    fp = fopen(loadFile, "r");
-   if (!fp) loadFail();
+   if (!fp) loadFail(loadFile);
    
    printf("Starting search from rows in %s:\n",loadFile);
    
@@ -1519,178 +1387,9 @@ void loadInitRows(char * file){
    fclose(fp);
 }
 
-/* ================================= */
-/*  Parse options and set up search  */
-/* ================================= */
 
-void setDefaultParams(){
-#ifdef QSIMPLE
-   params[P_WIDTH] = WIDTH;
-   params[P_PERIOD] = PERIOD;
-   params[P_OFFSET] = OFFSET;
-#else
-   params[P_WIDTH] = 0;
-   params[P_PERIOD] = 0;
-   params[P_OFFSET] = 0;
-#endif
-   params[P_SYMMETRY] = 0;
-   params[P_REORDER] = 1;
-   params[P_CHECKPOINT] = 0;
-   params[P_BASEBITS] = 4;
-   params[P_QBITS] = QBITS;
-   params[P_HASHBITS] = HASHBITS;
-   params[P_NUMTHREADS] = 1;
-   params[P_MINDEEP] = 0;
-   params[P_CACHEMEM] = -1*DEFAULT_CACHEMEM;
-   params[P_MEMLIMIT] = -1;
-   params[P_PRINTDEEP] = 1;
-   params[P_LONGEST] = 1;
-   params[P_LASTDEEP] = 0;
-   params[P_NUMSHIPS] = 0;
-   params[P_MINEXTENSION] = 0;
-}
 
-/* Note: currently reserving -v for potentially editing an array of extra variables */
-void parseOptions(int argc, char *argv[]){
-   while(--argc > 0){               /* read input parameters */
-      if ((*++argv)[0] == '-'){
-         switch ((*argv)[1]){
-            case 'r': case 'R':
-               --argc;
-               rule = *++argv;
-               break;
-#ifndef QSIMPLE
-            case 'p': case 'P':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_PERIOD]);
-               break;
-            case 'y': case 'Y':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_OFFSET]);
-              break;
-            case 'w': case 'W':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_WIDTH]);
-               break;
-#endif
-            case 's': case 'S':
-               --argc;
-               switch((*++argv)[0]) {
-                  case 'a': case 'A':
-                     params[P_SYMMETRY] = SYM_ASYM; mode = asymmetric; break;
-                  case 'o': case 'O':
-                     params[P_SYMMETRY] = SYM_ODD; mode = odd; break;
-                  case 'e': case 'E':
-                     params[P_SYMMETRY] = SYM_EVEN; mode = even; break;
-                  case 'g': case 'G':
-                     params[P_SYMMETRY] = SYM_GUTTER; mode = gutter; break;
-                  default:
-                     fprintf(stderr, "Error: unrecognized symmetry type %s\n", *argv);
-                     fprintf(stderr, "\nUse --help for a list of available options.\n");
-                     exit(1);
-                     break;
-               }
-               break;
-            case 'm': case 'M':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_MEMLIMIT]);
-               break;
-            case 'n': case 'N':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_LASTDEEP]);
-               newLastDeep = 1;
-               break;
-            case 'c': case 'C':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_CACHEMEM]);
-               break;
-            case 'i': case 'I':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_MINDEEP]);
-               break;
-            case 'q': case 'Q':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_QBITS]);
-               break;
-            case 'h': case 'H':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_HASHBITS]);
-               break;
-            case 'b': case 'B':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_BASEBITS]);
-               break;
-#ifdef _OPENMP
-            case 't': case 'T':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_NUMTHREADS]);
-               break;
-#endif
-            case 'f': case 'F':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_NUMSHIPS]);
-               break;
-            case 'g': case 'G':
-               --argc;
-               sscanf(*++argv, "%d", &params[P_MINEXTENSION]);
-               break;
-            case 'z': case 'Z':
-               params[P_PRINTDEEP] ^= 1;
-               break;
-            case 'a': case 'A':
-               params[P_LONGEST] ^= 1;
-               break;
-            case 'u': case 'U':
-               previewFlag = 1;
-               break;
-            case 'd': case 'D':
-               --argc;
-               dumpRoot = *++argv;
-               params[P_CHECKPOINT] = 1;
-               break;
-            case 'j': case 'J':
-               --argc;
-               sscanf(*++argv, "%d", &splitNum);
-               if(splitNum < 0) splitNum = 0;
-               break;
-            case 'e': case 'E':
-               --argc;
-               initRows = *++argv;
-               initRowsFlag = 1;
-               break;
-            case 'l': case 'L':
-               --argc;
-               loadFile = *++argv;
-               loadDumpFlag = 1;
-               loadParams();
-               break;
-            case '-':
-               if(!strcmp(*argv,"--help") || !strcmp(*argv,"--Help")){
-                  usage();
-                  exit(0);
-               }
-               else{
-                  fprintf(stderr, "Error: unrecognized option %s\n", *argv);
-                  fprintf(stderr, "\nUse --help for a list of available options.\n");
-                  exit(1);
-               }
-               break;
-           default:
-              fprintf(stderr, "Error: unrecognized option %s\n", *argv);
-              fprintf(stderr, "\nUse --help for a list of available options.\n");
-              exit(1);
-              break;
-         }
-      }
-      else{
-         fprintf(stderr, "Error: unrecognized option %s\n", *argv);
-         fprintf(stderr, "\nUse --help for a list of available options.\n");
-         exit(1);
-      }
-   }
-}
-
-void searchSetup(){
+void searchSetup(char * loadFile){
    if (params[P_CACHEMEM] < 0){
       if (5 * params[P_OFFSET] > params[P_PERIOD]) params[P_CACHEMEM] *= -1;
       else params[P_CACHEMEM] = 0;
@@ -1698,7 +1397,7 @@ void searchSetup(){
    
    checkParams(rule, nttable, params, previewFlag, initRowsFlag, loadDumpFlag);  /* Exit if parameters are invalid */
    
-   if(loadDumpFlag) loadState();
+   if(loadDumpFlag) loadState(loadFile);
    else {
       width = params[P_WIDTH];
       period = params[P_PERIOD];
@@ -1731,7 +1430,7 @@ void searchSetup(){
       
       enqueue(0,0);
       
-      if(initRowsFlag) loadInitRows(initRows);
+      if(initRowsFlag) loadInitRows(loadFile, initRows);
    }
    
    if(previewFlag){
@@ -1812,7 +1511,7 @@ void searchSetup(){
       while(currNode < fixedQTail){
          
          /* load the queue */
-         loadState();
+         loadState(loadFile);
          
          /* empty everything before currNode */
          j = deepQHead;

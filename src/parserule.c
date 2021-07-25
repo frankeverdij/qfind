@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "const.h"
+#include "enum.h"
+#include "load.h"
 
 /* =========================================== */
 /*  Lookup tables to determine successor rows  */
@@ -162,5 +166,251 @@ void checkParams(const char *rule, int *tab, const int *params, const int pf, co
       exit(1);
    }
    fprintf(stderr, "\n");
+}
+
+
+/* ========================== */
+/*  Print usage instructions  */
+/* ========================== */
+
+/* Note: currently reserving -v for potentially editing an array of extra variables */
+void usage(){
+#ifndef QSIMPLE
+   printf("Usage: \"qfind options\"\n");
+   printf("  e.g. \"qfind -r B3/S23 -p 3 -y 1 -w 6 -s even\" searches Life (rule B3/S23)\n");
+   printf("  for c/3 orthogonal spaceships with even bilateral symmetry and a\n");
+   printf("  logical width of 6 (full width 12).\n");
+#else
+   printf("Three required parameters, the period, offset, and width, must be\n");
+   printf("set within the code before it is compiled. You have compiled with\n");
+   printf("\n");
+   printf("Period: %d\n",PERIOD);
+   printf("Offset: %d\n",OFFSET);
+   printf("Width:  %d\n",WIDTH);
+#endif
+   printf("\n");
+   printf("Available options:\n");
+   printf("  -r bNN/sNN  searches for spaceships in the specified rule (default: b3/s23)\n");
+   printf("              Non-totalistic rules can be entered using Hensel notation.\n");
+   printf("\n");
+#ifndef QSIMPLE
+   printf("  -p NN  searches for spaceships with period NN\n");
+   printf("  -y NN  searches for spaceships that travel NN cells every period\n");
+   printf("  -w NN  searches for spaceships with logical width NN\n");
+   printf("         (full width depends on symmetry type)\n");
+#endif
+   printf("  -s FF  searches for spaceships with symmetry type FF\n");
+   printf("         Valid symmetry types are asymmetric, odd, even, and gutter.\n");
+   printf("\n");
+#ifdef _OPENMP
+   printf("  -t NN  runs search using NN threads during deepening step (default: 1)\n");
+#endif
+   printf("  -i NN  sets minimum deepening increment to NN (default: period)\n");
+   printf("  -n NN  deepens to total depth at least NN during first deepening step\n");
+   printf("         (total depth includes depth of BFS queue)\n");
+   printf("  -g NN  stores depth-first extensions of length at least NN (default: 0)\n");
+   printf("  -f NN  stops search if NN spaceships are found (default: no limit)\n");
+   printf("  -q NN  sets the BFS queue size to 2^NN (default: %d)\n",QBITS);
+   printf("  -h NN  sets the hash table size to 2^NN (default: %d)\n",HASHBITS);
+   printf("         Use -h 0 to disable duplicate elimination.\n");
+
+   printf("  -b NN  groups 2^NN queue entries to an index node (default: 4)\n");
+   printf("  -m NN  limits memory usage to NN megabytes (default: no limit)\n");
+#ifndef NOCACHE
+   printf("  -c NN  allocates NN megabytes per thread for lookahead cache\n");
+   printf("         (default: %d if speed is greater than c/5 and disabled otherwise)\n",DEFAULT_CACHEMEM);
+   printf("         Use -c 0 to disable lookahead caching.\n");
+#endif
+   printf("  -z     toggles whether to output spaceships found during deepening step\n");
+   printf("         (default: output enabled for spaceships found during deepening step)\n");
+   printf("         Disabling is useful for searches that find many spaceships.\n");
+   printf("  -a     toggles whether to output longest partial result at end of search\n");
+   printf("         (default: output enabled for longest partial result)\n");
+   printf("\n");
+   printf("  -e FF  uses rows in the file FF as the initial rows for the search\n");
+   printf("         (use the companion Golly Lua script to easily generate the\n");
+   printf("         initial row file)\n");
+   printf("  -d FF  dumps the search state after each queue compaction using\n");
+   printf("         file name prefix FF\n");
+   printf("  -l FF  loads the search state from the file FF\n");
+   printf("  -j NN  splits the search state into at most NN files\n");
+   printf("         (uses the file name prefix defined by the -d option)\n");
+   printf("  -u     previews partial results from the loaded state\n");
+   printf("\n");
+   printf("  --help  prints usage instructions and exits\n");
+}
+
+/* ================================= */
+/*  Parse options and set up search  */
+/* ================================= */
+
+void setDefaultParams(int * params){
+#ifdef QSIMPLE
+   params[P_WIDTH] = WIDTH;
+   params[P_PERIOD] = PERIOD;
+   params[P_OFFSET] = OFFSET;
+#else
+   params[P_WIDTH] = 0;
+   params[P_PERIOD] = 0;
+   params[P_OFFSET] = 0;
+#endif
+   params[P_SYMMETRY] = 0;
+   params[P_REORDER] = 1;
+   params[P_CHECKPOINT] = 0;
+   params[P_BASEBITS] = 4;
+   params[P_QBITS] = QBITS;
+   params[P_HASHBITS] = HASHBITS;
+   params[P_NUMTHREADS] = 1;
+   params[P_MINDEEP] = 0;
+   params[P_CACHEMEM] = -1*DEFAULT_CACHEMEM;
+   params[P_MEMLIMIT] = -1;
+   params[P_PRINTDEEP] = 1;
+   params[P_LONGEST] = 1;
+   params[P_LASTDEEP] = 0;
+   params[P_NUMSHIPS] = 0;
+   params[P_MINEXTENSION] = 0;
+}
+
+/* Note: currently reserving -v for potentially editing an array of extra variables */
+void parseOptions(int argc, char *argv[], char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char *loadFile, int *loadDumpFlag)
+{
+   while(--argc > 0){               /* read input parameters */
+      if ((*++argv)[0] == '-'){
+         switch ((*argv)[1]){
+            case 'r': case 'R':
+               --argc;
+               ++argv;
+               strncpy(rule, *argv, 255);
+               break;
+#ifndef QSIMPLE
+            case 'p': case 'P':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_PERIOD]);
+               break;
+            case 'y': case 'Y':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_OFFSET]);
+              break;
+            case 'w': case 'W':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_WIDTH]);
+               break;
+#endif
+            case 's': case 'S':
+               --argc;
+               switch((*++argv)[0]) {
+                  case 'a': case 'A':
+                     params[P_SYMMETRY] = SYM_ASYM; *mode = asymmetric; break;
+                  case 'o': case 'O':
+                     params[P_SYMMETRY] = SYM_ODD; *mode = odd; break;
+                  case 'e': case 'E':
+                     params[P_SYMMETRY] = SYM_EVEN; *mode = even; break;
+                  case 'g': case 'G':
+                     params[P_SYMMETRY] = SYM_GUTTER; *mode = gutter; break;
+                  default:
+                     fprintf(stderr, "Error: unrecognized symmetry type %s\n", *argv);
+                     fprintf(stderr, "\nUse --help for a list of available options.\n");
+                     exit(1);
+                     break;
+               }
+               break;
+            case 'm': case 'M':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_MEMLIMIT]);
+               break;
+            case 'n': case 'N':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_LASTDEEP]);
+               *newLastDeep = 1;
+               break;
+            case 'c': case 'C':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_CACHEMEM]);
+               break;
+            case 'i': case 'I':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_MINDEEP]);
+               break;
+            case 'q': case 'Q':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_QBITS]);
+               break;
+            case 'h': case 'H':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_HASHBITS]);
+               break;
+            case 'b': case 'B':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_BASEBITS]);
+               break;
+#ifdef _OPENMP
+            case 't': case 'T':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_NUMTHREADS]);
+               break;
+#endif
+            case 'f': case 'F':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_NUMSHIPS]);
+               break;
+            case 'g': case 'G':
+               --argc;
+               sscanf(*++argv, "%d", &params[P_MINEXTENSION]);
+               break;
+            case 'z': case 'Z':
+               params[P_PRINTDEEP] ^= 1;
+               break;
+            case 'a': case 'A':
+               params[P_LONGEST] ^= 1;
+               break;
+            case 'u': case 'U':
+               *previewFlag = 1;
+               break;
+            case 'd': case 'D':
+               --argc;
+               ++argv;
+               strncpy(dumpRoot, *argv, 255);
+               params[P_CHECKPOINT] = 1;
+               break;
+            case 'j': case 'J':
+               --argc;
+               sscanf(*++argv, "%d", splitNum);
+               if(*splitNum < 0) *splitNum = 0;
+               break;
+            case 'e': case 'E':
+               --argc;
+               initRows = *++argv;
+               *initRowsFlag = 1;
+               break;
+            case 'l': case 'L':
+               --argc;
+               loadFile = *++argv;
+               *loadDumpFlag = 1;
+               loadParams(params, loadFile, newLastDeep, rule, dumpRoot);
+               break;
+            case '-':
+               if(!strcmp(*argv,"--help") || !strcmp(*argv,"--Help")){
+                  usage();
+                  exit(0);
+               }
+               else{
+                  fprintf(stderr, "Error: unrecognized option %s\n", *argv);
+                  fprintf(stderr, "\nUse --help for a list of available options.\n");
+                  exit(1);
+               }
+               break;
+           default:
+              fprintf(stderr, "Error: unrecognized option %s\n", *argv);
+              fprintf(stderr, "\nUse --help for a list of available options.\n");
+              exit(1);
+              break;
+         }
+      }
+      else{
+         fprintf(stderr, "Error: unrecognized option %s\n", *argv);
+         fprintf(stderr, "\nUse --help for a list of available options.\n");
+         exit(1);
+      }
+   }
 }
 
