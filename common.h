@@ -1579,14 +1579,3 @@ void searchSetup(char * loadFile){
    
    rephase();
 }
-
-void finalReport(){
-   printf("Search complete.\n\n");
-   
-   printf("%d spaceship%s found.\n",numFound,(numFound == 1) ? "" : "s");
-   printf("Maximum depth reached: %d\n",longest);
-   if(params[P_LONGEST] && aborting != 3){ /* aborting == 3 means we reached ship limit */
-      if(patternBuf) printf("Longest partial result:\n\n%s",patternBuf);
-      else printf("No partial results found.\n");
-   }
-}

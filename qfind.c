@@ -10,6 +10,7 @@
 
 void setDefaultParams(int * params);
 void parseOptions(int argc, char *argv[], const char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char **loadFile, int *loadDumpFlag);
+void finalReport(const int numFound, const int longest, const int *params, const int aborting, const char * patternBuf);
 
 int lookAhead(row *pRows, int a, int pPhase){
 /* indices: first digit represents vertical offset,      */
@@ -339,7 +340,7 @@ int main(int argc, char *argv[]){
    fflush(stdout);
    breadthFirst();
    
-   finalReport();
+   finalReport(numFound, longest, params, aborting, patternBuf);
    
    return 0;
 }

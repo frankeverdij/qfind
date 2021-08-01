@@ -27,7 +27,7 @@ EXE = qfind
 # list of all sources
 SOURCES = qfind.c \
           src/gcd.c src/insort.c src/loadfile.c src/parserule.c \
-          src/evolve.c src/echoparams.c src/makephases.c
+          src/evolve.c src/echoparams.c src/makephases.c src/finalreport.c
 
 # list of all objects
 OBJECTS = $(SOURCES:.c=.o)
