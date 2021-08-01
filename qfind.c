@@ -9,7 +9,7 @@
 #include "common.h"
 
 void setDefaultParams(int * params);
-void parseOptions(int argc, char *argv[], const char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char *loadFile, int *loadDumpFlag);
+void parseOptions(int argc, char *argv[], const char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char **loadFile, int *loadDumpFlag);
 
 int fwdOff[MAXPERIOD], backOff[MAXPERIOD], doubleOff[MAXPERIOD], tripleOff[MAXPERIOD];
 
@@ -361,13 +361,13 @@ int main(int argc, char *argv[]){
    
    setDefaultParams(params);
    
-   parseOptions(argc, argv, rule, &mode, params, &newLastDeep, &previewFlag, dumpRoot, &splitNum, initRows, &initRowsFlag, loadFile, &loadDumpFlag);
+   parseOptions(argc, argv, rule, &mode, params, &newLastDeep, &previewFlag, dumpRoot, &splitNum, initRows, &initRowsFlag, &loadFile, &loadDumpFlag);
+   printf("%s\n",loadFile);
    
    searchSetup(loadFile);
    
    printf("Starting search\n");
    fflush(stdout);
-   
    breadthFirst();
    
    finalReport();

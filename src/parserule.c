@@ -272,7 +272,7 @@ void setDefaultParams(int * params){
 }
 
 /* Note: currently reserving -v for potentially editing an array of extra variables */
-void parseOptions(int argc, char *argv[], char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char *loadFile, int *loadDumpFlag)
+void parseOptions(int argc, char *argv[], char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char **loadFile, int *loadDumpFlag)
 {
    while(--argc > 0){               /* read input parameters */
       if ((*++argv)[0] == '-'){
@@ -384,9 +384,9 @@ void parseOptions(int argc, char *argv[], char *rule, Mode *mode, int *params, i
                break;
             case 'l': case 'L':
                --argc;
-               loadFile = *++argv;
+               *loadFile = *++argv;
                *loadDumpFlag = 1;
-               loadParams(params, loadFile, newLastDeep, rule, dumpRoot);
+               loadParams(params, *loadFile, newLastDeep, rule, dumpRoot);
                break;
             case '-':
                if(!strcmp(*argv,"--help") || !strcmp(*argv,"--Help")){
