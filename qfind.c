@@ -11,36 +11,6 @@
 void setDefaultParams(int * params);
 void parseOptions(int argc, char *argv[], const char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char **loadFile, int *loadDumpFlag);
 
-int fwdOff[MAXPERIOD], backOff[MAXPERIOD], doubleOff[MAXPERIOD], tripleOff[MAXPERIOD];
-
-void makePhases(){
-   int i;
-   for (i = 0; i < period; i++) backOff[i] = -1;
-   i = 0;
-   for (;;) {
-      int j = offset;
-      while (backOff[(i+j)%period] >= 0 && j < period) j++;
-      if (j == period) {
-         backOff[i] = period-i;
-         break;
-      }
-      backOff[i] = j;
-      i = (i+j)%period;
-   }
-   for (i = 0; i < period; i++)
-      fwdOff[(i+backOff[i])%period] = backOff[i];
-   for (i = 0; i < period; i++) {
-      int j = (i - fwdOff[i]);
-      if (j < 0) j += period;
-      doubleOff[i] = fwdOff[i] + fwdOff[j];
-   }
-   for (i = 0; i <  period; i++){
-      int j = (i - fwdOff[i]);
-      if (j < 0) j += period;
-      tripleOff[i] = fwdOff[i] + doubleOff[j];
-   }
-}
-
 int lookAhead(row *pRows, int a, int pPhase){
 /* indices: first digit represents vertical offset,      */
 /*          second digit represents generational offset  */

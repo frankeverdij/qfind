@@ -25,7 +25,9 @@ LDFLAGS = -fopenmp
 EXE = qfind
 
 # list of all sources
-SOURCES = qfind.c src/gcd.c src/insort.c src/loadfile.c src/parserule.c src/evolve.c src/echoparams.c
+SOURCES = qfind.c \
+          src/gcd.c src/insort.c src/loadfile.c src/parserule.c \
+          src/evolve.c src/echoparams.c src/makephases.c
 
 # list of all objects
 OBJECTS = $(SOURCES:.c=.o)

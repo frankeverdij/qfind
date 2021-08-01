@@ -139,9 +139,8 @@ void checkParams(const char *rule, int *tab, const int *params, const int pf, co
 int gcd(int a, int b);
 void echoParams(const int * params, const char *rule, const int period);
 
-#ifndef QSIMPLE
-void makePhases();
-#endif
+int fwdOff[MAXPERIOD], backOff[MAXPERIOD], doubleOff[MAXPERIOD], tripleOff[MAXPERIOD];
+void makePhases(const int period, const int offset, int *fwdOff, int *backOff, int *doubleOff, int *tripleOff);
 
 unsigned char *causesBirth;
 
@@ -1573,7 +1572,7 @@ void searchSetup(char * loadFile){
    echoParams(params, rule, period);
    
 #ifndef QSIMPLE
-   makePhases();
+   makePhases(period, offset, fwdOff, backOff, doubleOff, tripleOff);
 #endif
    fasterTable(nttable, nttable2);
    makeTables();
