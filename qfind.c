@@ -332,7 +332,6 @@ int main(int argc, char *argv[]){
    setDefaultParams(params);
    
    parseOptions(argc, argv, rule, &mode, params, &newLastDeep, &previewFlag, dumpRoot, &splitNum, initRows, &initRowsFlag, &loadFile, &loadDumpFlag);
-   printf("%s\n",loadFile);
    
    searchSetup(loadFile);
    
