@@ -150,6 +150,13 @@ char nttable2[512] ;
 
 uint16_t *makeRow(int row1, int row2) ;
 
+/*                                  */
+/*      function: getoffset         */
+/*         input: int row1, row2    */
+/* global  input: uint16_t **gInd3  */
+/* global  input: int width         */
+/*        output: uint16_t* r       */
+/*                                  */
 uint16_t *getoffset(int row1, int row2) {
    uint16_t *r = gInd3[(row1 << width) + row2] ;
    if (r == 0)
@@ -157,6 +164,12 @@ uint16_t *getoffset(int row1, int row2) {
    return r ;
 }
 
+/*                                      */
+/*      function: getoffsetcount        */
+/*         input: int row1, row2, row3  */
+/*         input: uint16_t **p          */
+/*         input: int *n                */
+/*                                      */
 void getoffsetcount(int row1, int row2, int row3, uint16_t **p, int *n) {
    uint16_t *theRow = getoffset(row1, row2) ;
    *p = theRow + theRow[row3] ;
@@ -167,6 +180,20 @@ int *gWorkConcat ;      /* gWorkConcat to be parceled out between threads */
 int *rowHash ;
 uint16_t *valorder ;
 void genStatCounts(const int symmetry, const int wi, const char *table2, uint32_t *gc);
+
+/*                                              */
+/*      function: makeTables                    */
+/* global    i/o: unsigned char *causesBirth    */
+/* global  input: int width                     */
+/* global    i/o: uint16_t **gInd3              */
+/* global    i/o: int *rowhash                  */
+/* global    i/o: uint32_t *gcount              */
+/* global    i/o: long long memusage            */
+/* global  input: char *nttable2                */
+/* global  input: int *params                   */
+/* global    i/o: int *gWorkConcat              */
+/* global    i/o: uint16_t* valorder            */
+/*                                              */
 void makeTables() {
    causesBirth = (unsigned char*)malloc((long long)sizeof(*causesBirth)<<width);
    gInd3 = (uint16_t **)calloc(sizeof(*gInd3),(1LL<<(width*2))) ;
@@ -195,6 +222,12 @@ void makeTables() {
       makeRow(0, row2) ;
 }
 
+/*                                  */
+/*      function: hasRow            */
+/*         input: uint16_t *theRow  */
+/*         input: int siz           */
+/*        output: unsigned int h    */
+/*                                  */
 unsigned int hashRow(uint16_t *theRow, int siz) {
    unsigned int h = 0 ;
    for (int i=0; i<siz; i++)
@@ -202,6 +235,15 @@ unsigned int hashRow(uint16_t *theRow, int siz) {
    return h ;
 }
 
+/*                                  */
+/*      function: makeRow           */
+/*         input: int row1, row2    */
+/* global  input: int width         */
+/* global  input: char *nttable2    */
+/* global  input: int *params       */
+/* global    i/o: uint16_t **gInd3  */
+/*        output: uint16_t *theRow  */
+/*                                  */
 uint16_t *makeRow(int row1, int row2) {
    int good = 0 ;
    /* Set up gWork for this particular thread */
@@ -290,11 +332,26 @@ uint16_t *makeRow(int row1, int row2) {
 /* ====================================================== */
 /*  Hash table for detecting equivalent partial patterns  */
 /* ====================================================== */
-
+/*                              */
+/*      function: resetHash     */
+/* global    i/o: node *hash    */
+/* global  input: int *params   */
+/*                              */
 void resetHash() { if (hash != 0) memset(hash,0,4*HASHSIZE); }
 
 int hashPhase = 0;
 
+/*                                  */
+/*      function: hashFunction      */
+/*         input: node b            */
+/*         input: row r             */
+/* global  input: int nRowsInState  */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/*        output: long h            */
+/*                                  */
 static inline long hashFunction(node b, row r) {
    long h = r;
    int i;
@@ -307,6 +364,16 @@ static inline long hashFunction(node b, row r) {
    return h & HASHMASK;
 }
 
+/*                                  */
+/*      function: same              */
+/*         input: node p, q         */
+/*         input: row r             */
+/* global  input: int nRowsInState  */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/*                                  */
 /* test if q+r is same as p */
 static inline int same(node p, node q, row r) {
    int i;
@@ -320,6 +387,18 @@ static inline int same(node p, node q, row r) {
    return 1;
 }
 
+/*                                  */
+/*      function: isVisited         */
+/*         input: node b            */
+/*         input: row r             */
+/* global  input: int nRowsInState  */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/* global  input: node *hash        */
+/*        output: int               */
+/*                                  */
 /* test if we've seen this child before */
 static inline int isVisited(node b, row r) {
    if (same(0,b,r)) return 1;
@@ -334,6 +413,16 @@ static inline int isVisited(node b, row r) {
    return 0;
 }
 
+/*                                  */
+/*      function: setVisited        */
+/*         input: node b            */
+/* global    i/o: node *hash        */
+/* global  input: int nRowsInState  */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/*                                  */
 /* set node (NOT child) to be visited */
 static inline void setVisited(node b) {
    if (hash != 0) hash[ hashFunction(PARENT(b),ROW(b)) ] = b;
@@ -349,6 +438,14 @@ int RLElineWidth = 0;
 char RLEchar;
 char * patternBuf;
 
+/*                                  */
+/*      function: bufRLE            */
+/*         input: char c            */
+/* global    i/o: int RLEcount      */
+/* global    i/o: int RLElineWidth  */
+/* global    i/o: char RLEchar      */
+/* global    i/o: char *patternBuf  */
+/*                                  */
 void bufRLE(char c) {
   if (RLEcount > 0 && c != RLEchar) {
       if (RLElineWidth++ >= MAXRLELINEWIDTH) {
@@ -370,6 +467,16 @@ void bufRLE(char c) {
   } else RLElineWidth = 0;
 }
 
+/*                                      */
+/*      function: bufRow                */
+/*         input: unsigned long rr, r   */
+/*         input: int shift             */
+/* inherited from bufRLE                */
+/* global    i/o: int RLEcount          */
+/* global    i/o: int RLElineWidth      */
+/* global    i/o: char RLEchar          */
+/* global    i/o: char *patternBuf      */
+/*                                      */
 void bufRow(unsigned long rr, unsigned long r, int shift) {
    while (r | rr) {
       if (shift == 0)
@@ -382,6 +489,12 @@ void bufRow(unsigned long rr, unsigned long r, int shift) {
    bufRLE('$');
 }
 
+/*                                  */
+/*      function: safeShift         */
+/*         input: unsigned long r   */
+/*         input: int i             */
+/*        output: unsigned long rr  */
+/*                                  */
 /* Avoid Intel shift bug */
 static inline unsigned long
 safeShift(unsigned long r, int i)
