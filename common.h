@@ -156,6 +156,7 @@ uint16_t *makeRow(int row1, int row2) ;
 /* global  input: uint16_t **gInd3  */
 /* global  input: int width         */
 /*        output: uint16_t* r       */
+/*         calls: makeRow           */
 /*                                  */
 uint16_t *getoffset(int row1, int row2) {
    uint16_t *r = gInd3[(row1 << width) + row2] ;
@@ -169,6 +170,7 @@ uint16_t *getoffset(int row1, int row2) {
 /*         input: int row1, row2, row3  */
 /*         input: uint16_t **p          */
 /*         input: int *n                */
+/*         calls: getoffset             */
 /*                                      */
 void getoffsetcount(int row1, int row2, int row3, uint16_t **p, int *n) {
    uint16_t *theRow = getoffset(row1, row2) ;
@@ -193,6 +195,10 @@ void genStatCounts(const int symmetry, const int wi, const char *table2, uint32_
 /* global  input: int *params                   */
 /* global    i/o: int *gWorkConcat              */
 /* global    i/o: uint16_t* valorder            */
+/*         calls: evolveRow                     */
+/*         calls: genStatCounts                 */
+/*         calls: makeRow                       */
+/*         calls: insortRows                    */
 /*                                              */
 void makeTables() {
    causesBirth = (unsigned char*)malloc((long long)sizeof(*causesBirth)<<width);
@@ -243,6 +249,10 @@ unsigned int hashRow(uint16_t *theRow, int siz) {
 /* global  input: int *params       */
 /* global    i/o: uint16_t **gInd3  */
 /*        output: uint16_t *theRow  */
+/*         calls: evolveRow         */
+/*         calls: evolveRowLow      */
+/*         calls: evolveRowHigh     */
+/*         calls: hashRow           */
 /*                                  */
 uint16_t *makeRow(int row1, int row2) {
    int good = 0 ;
@@ -391,11 +401,15 @@ static inline int same(node p, node q, row r) {
 /*      function: isVisited         */
 /*         input: node b            */
 /*         input: row r             */
+/*         calls: same              */
+/*         calls: hashFunction      */
+/*      Inherits:                   */
 /* global  input: int nRowsInState  */
 /* global  input: int *params       */
 /* global  input: row *rows         */
 /* global  input: int width         */
 /* global  input: node *base        */
+/*                                  */
 /* global  input: node *hash        */
 /*        output: int               */
 /*                                  */
@@ -417,6 +431,8 @@ static inline int isVisited(node b, row r) {
 /*      function: setVisited        */
 /*         input: node b            */
 /* global    i/o: node *hash        */
+/*         calls: hashFunction      */
+/*      Inherits:                   */
 /* global  input: int nRowsInState  */
 /* global  input: int *params       */
 /* global  input: row *rows         */
@@ -738,12 +754,30 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    return 1;
 }
 
+/*                                  */
+/*      function: succesfulPattern  */
+/*         input: node b            */
+/*         input: row *pRows        */
+/*         input: row nodeRow       */
+/*         input: uint32_t lastrow  */
+/*         calls: bufferPattern     */
+/*      Inherits:                   */
+/*                                  */
 void successfulPattern(node b, row *pRows, int nodeRow, uint32_t lastRow){
    if(bufferPattern(b, pRows, nodeRow, lastRow, 1))
       printf("\n%s\n",patternBuf);
    fflush(stdout);
 }
 
+/*                                  */
+/*      function: terminal          */
+/*         input: node n            */
+/* global  input: int period        */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/*                                  */
 /* Is this a node at which we can stop? */
 int terminal(node n){
    int p;
