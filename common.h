@@ -761,7 +761,7 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
 /*         input: row nodeRow       */
 /*         input: uint32_t lastrow  */
 /*         calls: bufferPattern     */
-/*      Inherits:                   */
+/*      Inherits: ?ToDo?            */
 /*                                  */
 void successfulPattern(node b, row *pRows, int nodeRow, uint32_t lastRow){
    if(bufferPattern(b, pRows, nodeRow, lastRow, 1))
@@ -772,6 +772,7 @@ void successfulPattern(node b, row *pRows, int nodeRow, uint32_t lastRow){
 /*                                  */
 /*      function: terminal          */
 /*         input: node n            */
+/*        output: int               */
 /* global  input: int period        */
 /* global  input: int *params       */
 /* global  input: row *rows         */
@@ -806,6 +807,18 @@ node qHead,qTail;
 node qStart; /* index of first node in queue */
 node qEnd;   /* index of first unused node after end of queue */
 
+/*                                  */
+/*      function: rephase           */
+/* global    i/o: node qhead        */
+/* global  input: node qTail        */
+/* global    i/o: int queuePhase    */
+/* global    i/o: node nextRephase  */
+/* global  input: int period        */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/*                                  */
 /* Maintain phase of queue nodes.  After dequeue(), the global variable phase
    gives the phase of the dequeued item.  If the queue is compacted, this information
    needs to be reinitialized by a call to rephase(), after which phase will not be
@@ -837,11 +850,28 @@ void rephase() {
    nextRephase = y;
 }
 
+/*                                  */
+/*      function: peekPhase         */
+/*         input: node i            */
+/*        output: int               */
+/* global  input: int queuePhase    */
+/* global  input: node nextRephase  */
+/* global  input: int period        */
+/*                                  */
 /* phase of an item on the queue */
 int peekPhase(node i) {
    return (i < nextRephase? queuePhase : (queuePhase+1)%period);
 }
 
+/*                                  */
+/*      function: qIsEmpty          */
+/*         input: node i            */
+/*        output: static inline int */
+/* global    i/o: node qhead        */
+/* global  input: int qTail         */
+/* global  input: row *rows         */
+/* global    i/o: uint32_t deepQHead*/
+/*                                  */
 /* Test queue status */
 static inline int qIsEmpty() {
    while (qHead < qTail && EMPTY(qHead)){
@@ -851,6 +881,11 @@ static inline int qIsEmpty() {
    return (qTail == qHead);
 }
 
+/*                                  */
+/*      function: qFull             */
+/* global    i/o: int aborting      */
+/* global  input: int *params       */
+/*                                  */
 void qFull() {
     if (aborting != 2) {
       printf("Exceeded %d node limit, search aborted\n", QSIZE);
@@ -859,6 +894,21 @@ void qFull() {
    }
 }
 
+/*                                  */
+/*      function: enqueue           */
+/*         input: node b            */
+/*         input: row r             */
+/*        output: static inline int */
+/* global    i/o: int qTail         */
+/* global  input: int *params       */
+/* global    i/o: node *base        */
+/* global    i/o: row *rows         */
+/* global    i/o: uint32_t deepQTail*/
+/* global    i/o: uint32_t *deepRowIndices */
+/*         calls: qFull             */
+/*      inherits:                   */
+/* global    i/o: int aborting      */
+/*                                  */
 static inline void enqueue(node b, row r) {
    node tempQTail = qTail;
    node i = qTail++;
