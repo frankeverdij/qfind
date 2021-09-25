@@ -934,6 +934,18 @@ static inline void enqueue(node b, row r) {
    deepRowIndices[deepQTail] = 0;
 }
 
+/*                                  */
+/*      function: dequeue           */
+/*        output: static inline node */
+/* global    i/o: uint32_t deepQHead */
+/* global    i/o: node qhead        */
+/* global  input: int qTail         */
+/* global  input: row *rows         */
+/* global    i/o: node nextRephase  */
+/* global    i/o: int queuePhase    */
+/* global  input: int period        */
+/* global    i/o: int phase         */
+/*                                  */
 static inline node dequeue() {
    oldDeepQHead = deepQHead;  /* Save old parallel queue head for use in process() */
    while (qHead < qTail && EMPTY(qHead)){
@@ -949,13 +961,31 @@ static inline node dequeue() {
    return qHead++;
 }
 
+/*                                  */
+/*      function: pop               */
+/* global  input: node qhead        */
+/* global    i/o: int qTail         */
+/* global  input: row *rows         */
+/*                                  */
 static inline void pop() {
    qTail--;
    while (qTail > qHead && EMPTY(qTail-1)) qTail--;
 }
 
+/*                                  */
+/*      function: resetQ            */
+/* global output: node qhead        */
+/* global output: int qTail         */
+/* global output: uint32_t deepQHead */
+/* global output: uint32_t deepQTail */
+/*                                  */
 void resetQ() { qHead = qTail = 0; deepQHead = deepQTail = 0; }
 
+/*                                  */
+/*      function: qTop              */
+/*        output: static inline int */
+/* global  input: qTail             */
+/*                                  */
 static inline int qTop() { return qTail - 1; }
 
 /* =================== */
