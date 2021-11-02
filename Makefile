@@ -12,6 +12,10 @@ CFLAGS = -O3 -fopenmp -march=native -Wall -I.
 # g++ compiler flags
 CXXFLAGS = -O3 -fopenmp -march=native -Wall -I.
 
+# NOCACHE directive
+# CFLAGS += -DNOCACHE
+# CXXFLAGS += -DNOCACHE
+
 # g++ linker
 CXX_LD = $(CXX)
 
