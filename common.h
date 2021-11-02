@@ -141,6 +141,7 @@ void echoParams(const int * params, const char *rule, const int period);
 
 int fwdOff[MAXPERIOD], backOff[MAXPERIOD], doubleOff[MAXPERIOD], tripleOff[MAXPERIOD];
 void makePhases(const int period, const int offset, int *fwdOff, int *backOff, int *doubleOff, int *tripleOff);
+void putnum(long n);
 
 unsigned char *causesBirth;
 
@@ -937,6 +938,7 @@ static inline void enqueue(node b, row r) {
 /*                                  */
 /*      function: dequeue           */
 /*        output: static inline node */
+/* global output: uint32_t oldDeepQHead */
 /* global    i/o: uint32_t deepQHead */
 /* global    i/o: node qhead        */
 /* global  input: int qTail         */
@@ -997,6 +999,13 @@ char dumpFile[512];
 
 Dump dumpFlag = unknown;    /* Dump status flags, possible values follow */
 
+/*                                  */
+/*      function: openDumpFile      */
+/*        output: FILE *            */
+/* global    i/o: int dumpNum       */
+/* global    i/o: char[512] dumpFile */
+/* global  input: char[256] dumpRoot */
+/*                                  */
 FILE * openDumpFile()
 {
    FILE * fp;
@@ -1012,6 +1021,24 @@ FILE * openDumpFile()
    return (FILE *) 0;
 }
 
+/*                                  */
+/*      function: dumpState         */
+/* global output: Dump dumpFlag     */
+/* global  input: char * rule       */
+/* global  input: char[256] dumpRoot */
+/* global  input: int *params       */
+/* global  input: int width         */
+/* global  input: int period        */
+/* global  input: int offset        */
+/* global  input: int mode          */
+/* global  input: node qhead        */
+/* global  input: node qStart       */
+/* global  input: node qEnd         */
+/* global  input: row *rows         */
+/* global  input: uint32_t *deepRowIndices */
+/* global  input: row **deepRows    */
+/*         calls: openDumpFile      */
+/*                                  */
 void dumpState()
 {
    FILE * fp;
@@ -1059,24 +1086,15 @@ void dumpState()
 /*  Compaction of nearly full queue  */
 /* ================================= */
 
-void putnum(long n) {
-   char suffix;
-   if (n >= 1000000) {
-      n /= 100000;
-      suffix = 'M';
-   } else if (n >= 1000) {
-      n /= 100;
-      suffix = 'k';
-   } else {
-      printf("%ld", n);
-      return;
-   }
-
-   if (n >= 100) printf("%ld", n/10);
-   else printf("%ld.%ld", n/10, n%10);
-   putchar(suffix);
-}
-
+/*                                  */
+/*      function: currentDepth      */
+/*        output: long i            */
+/* global  input: int qTail         */
+/* global  input: int *params       */
+/* global  input: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/*                                  */
 long currentDepth() {
    long i;
    node x;
@@ -1097,6 +1115,16 @@ long currentDepth() {
 ** were previously saved in local variables are saved in globals.
 */
 
+/*                                  */
+/*      function: doCompactPart1    */
+/* global  input: int qTail         */
+/* global    i/o: node qhead        */
+/* global  input: int *params       */
+/* global    i/o: row *rows         */
+/* global  input: int width         */
+/* global  input: node *base        */
+/* global output: node qStart       */
+/*                                  */
 void doCompactPart1()
 {
    node x,y;
@@ -1555,12 +1583,6 @@ void loadState(char * loadFile){
 /*  Load initial rows for extending partial results  */
 /* ================================================= */
 
-void printRow(row theRow){
-   int i;
-   for(i = width - 1; i >= 0; --i) printf("%c",(theRow & 1 << i ? 'o' : '.'));
-   printf("\n");
-}
-
 void loadInitRows(char * loadFile, char * file){
    FILE * fp;
    int i,j;
@@ -1578,7 +1600,9 @@ void loadInitRows(char * loadFile, char * file){
       for(j = 0; j < width; j++){
          theRow |= ((rowStr[width - j - 1] == '.') ? 0:1) << j;
       }
-      printRow(theRow);
+      for(j = width - 1; j >= 0; --j)
+        printf("%c",(theRow & 1 << j ? 'o' : '.'));
+      printf("\n");
       enqueue(dequeue(),theRow);
       theRow = 0;
    }
