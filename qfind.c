@@ -12,7 +12,7 @@ void setDefaultParams(int * params);
 void parseOptions(int argc, char *argv[], const char *rule, Mode *mode, int *params, int *newLastDeep, int *previewFlag, char *dumpRoot, int *splitNum, char *initRows, int *initRowsFlag, char **loadFile, int *loadDumpFlag);
 void finalReport(const int numFound, const int longest, const int *params, const int aborting, const char * patternBuf);
 
-int lookAhead(row *pRows, int a, int pPhase){
+int lookAhead(row *pRows, int a, int pPhase, const int *pm){
 /* indices: first digit represents vertical offset,      */
 /*          second digit represents generational offset  */
    int ri11, ri12, ri13, ri22, ri23;
@@ -21,31 +21,31 @@ int lookAhead(row *pRows, int a, int pPhase){
    int row11, row12, row13, row22, row23;
    int k;
    
-   getoffsetcount(pRows[a - params[P_PERIOD] - fwdOff[pPhase]],
+   getoffsetcount(pRows[a - pm[P_PERIOD] - fwdOff[pPhase]],
                   pRows[a - fwdOff[pPhase]],
                   pRows[a], &riStart11, &numRows11);
    if (!numRows11)
       return 0;
    
-   getoffsetcount(pRows[a - params[P_PERIOD] - doubleOff[pPhase]],
+   getoffsetcount(pRows[a - pm[P_PERIOD] - doubleOff[pPhase]],
                   pRows[a - doubleOff[pPhase]],
                   pRows[a - fwdOff[pPhase]], &riStart12, &numRows12);
    
-   if(tripleOff[pPhase] >= params[P_PERIOD]){
+   if(tripleOff[pPhase] >= pm[P_PERIOD]){
       riStart13 = pRows + (a + params[P_PERIOD] - tripleOff[pPhase]);
       numRows13 = 1;
 #ifndef NOCACHE
       k = getkey(riStart11, riStart12, (uint16_t*)(gcount + riStart13[0]),
-         (pRows[a-doubleOff[pPhase]] << width) + pRows[a-tripleOff[pPhase]]);
+         (pRows[a-doubleOff[pPhase]] << width) + pRows[a-tripleOff[pPhase]], pm);
 #endif
    }
    else{
-      getoffsetcount(pRows[a - params[P_PERIOD] - tripleOff[pPhase]],
+      getoffsetcount(pRows[a - pm[P_PERIOD] - tripleOff[pPhase]],
                      pRows[a - tripleOff[pPhase]],
                      pRows[a - doubleOff[pPhase]], &riStart13, &numRows13);
 #ifndef NOCACHE
       k = getkey(riStart11, riStart12, riStart13,
-         (pRows[a-doubleOff[pPhase]] << width) + pRows[a-tripleOff[pPhase]]);
+         (pRows[a-doubleOff[pPhase]] << width) + pRows[a-tripleOff[pPhase]], pm);
 #endif
    }
 #ifndef NOCACHE
@@ -74,7 +74,7 @@ int lookAhead(row *pRows, int a, int pPhase){
                   row22 = riStart22[ri22];
                   if (p[row22+1]!=p[row22]) {
 #ifndef NOCACHE
-                     setkey(k, 1);
+                     setkey(k, 1, pm);
 #endif
                      return 1;
                   }
@@ -84,7 +84,7 @@ int lookAhead(row *pRows, int a, int pPhase){
       }
    }
 #ifndef NOCACHE
-   setkey(k, 0);
+   setkey(k, 0, pm);
 #endif
    return 0;
 }
@@ -168,7 +168,7 @@ void process(node theNode)
    
    for(i = firstRow; i < numRows; ++i){
       pRows[currRow] = riStart[i];
-      if (!isVisited(theNode, pRows[currRow]) && lookAhead(pRows, currRow, pPhase)){
+      if (!isVisited(theNode, pRows[currRow]) && lookAhead(pRows, currRow, pPhase, params)){
          enqueue(theNode, pRows[currRow]);
          if(currentDepth() > longest){
             if(params[P_LONGEST]) bufferPattern(qTail-1, NULL, 0, 0, 0);
@@ -282,7 +282,7 @@ int depthFirst(node theNode, uint16_t howDeep, uint16_t **pInd, int *pRemain, ro
       }
       pRows[currRow] = *(pInd[currRow] - pRemain[currRow]);
       --pRemain[currRow];
-      if(!lookAhead(pRows, currRow, pPhase)) continue;
+      if(!lookAhead(pRows, currRow, pPhase, params)) continue;
 
       ++currRow;
       ++pPhase;

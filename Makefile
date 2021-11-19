@@ -13,8 +13,8 @@ CFLAGS = -O3 -fopenmp -march=native -Wall -I.
 CXXFLAGS = -O3 -fopenmp -march=native -Wall -I.
 
 # NOCACHE directive
-# CFLAGS += -DNOCACHE
-# CXXFLAGS += -DNOCACHE
+ CFLAGS += -DNOCACHE
+ CXXFLAGS += -DNOCACHE
 
 # g++ linker
 CXX_LD = $(CXX)
@@ -31,7 +31,8 @@ EXE = qfind
 # list of all sources
 SOURCES = qfind.c \
           src/gcd.c src/insort.c src/loadfile.c src/parserule.c src/putnum.c \
-          src/evolve.c src/echoparams.c src/makephases.c src/finalreport.c
+          src/evolve.c src/echoparams.c src/makephases.c src/finalreport.c \
+          src/cache.c
 
 # list of all objects
 OBJECTS = $(SOURCES:.c=.o)

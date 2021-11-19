@@ -14,6 +14,7 @@
 #include "const.h"
 #include "enum.h"
 #include "load.h"
+#include "cache.h"
 
 #ifdef QSIMPLE
    #define WHICHPROGRAM qfind-simple
@@ -71,18 +72,6 @@ long long memlimit = 0;
 row **deepRows;
 uint32_t *deepRowIndices;
 uint32_t deepQHead, deepQTail, oldDeepQHead;
-
-#ifndef NOCACHE
-long long cachesize ;
-typedef struct {
-   uint16_t *p1, *p2, *p3 ;
-   int abn, r ;
-} cacheentry;
-
-cacheentry *totalCache;
-
-cacheentry **cache;
-#endif
 
 /*
 ** Representation of vertices.
@@ -1269,40 +1258,6 @@ void doCompact()
    doCompactPart2();
 }
 
-/* ================= */
-/*  Lookahead cache  */
-/* ================= */
-
-#ifndef NOCACHE
-int getkey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
-#ifndef QSIMPLE
-   if(params[P_CACHEMEM] == 0) return 0;
-#endif
-   unsigned long long h = (unsigned long long)p1 +
-      17 * (unsigned long long)p2 + 257 * (unsigned long long)p3 +
-      513 * abn ;
-   h = h + (h >> 15) ;
-   h &= (cachesize-1) ;
-   cacheentry *ce = &(cache[omp_get_thread_num()][h]) ;
-   if (ce->p1 == p1 && ce->p2 == p2 && ce->p3 == p3 && ce->abn == abn)
-      return -2 + ce->r ;
-   ce->p1 = p1 ;
-   ce->p2 = p2 ;
-   ce->p3 = p3 ;
-   ce->abn = abn ;
-   return h ;
-}
-#endif
-
-#ifndef NOCACHE
-void setkey(int h, int v) {
-#ifndef QSIMPLE
-   if(params[P_CACHEMEM])
-#endif
-      cache[omp_get_thread_num()][h].r = v ;
-}
-#endif
-
 /* ========================== */
 /*  Primary search functions  */
 /* ========================== */
@@ -1796,22 +1751,7 @@ void searchSetup(char * loadFile){
    memlimit = ((long long)params[P_MEMLIMIT]) << 20;
    
    /* Allocate lookahead cache */
-#ifndef NOCACHE
-   cachesize = 32768 ;
-   while (cachesize * sizeof(cacheentry) < 550000 * params[P_CACHEMEM])
-      cachesize <<= 1 ;
-   memusage += sizeof(cacheentry) * (cachesize + 5) * params[P_NUMTHREADS];
-   if(params[P_MEMLIMIT] >= 0 && memusage > memlimit){
-      printf("Not enough memory to allocate lookahead cache\n");
-      exit(0);
-   }
-   totalCache = (cacheentry *)calloc(sizeof(cacheentry),
-         (cachesize + 5) * params[P_NUMTHREADS]) ;
-   cache = (cacheentry **)calloc(sizeof(**cache), params[P_NUMTHREADS]);
-   
-   for(int i = 0; i < params[P_NUMTHREADS]; i++)
-      cache[i] = totalCache + (cachesize + 5) * i;
-#endif
+   memusage += cacheallocate(memlimit, params);
    
    echoParams(params, rule, period);
    
