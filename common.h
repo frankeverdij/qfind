@@ -1281,6 +1281,16 @@ void doCompactPart2()
    deepQTail = qTail - qHead;
 }
 
+/*                                  */
+/*      function: doCompactPart2    */
+/* global    i/o: int qTail         */
+/* global    i/o: node qhead        */
+/* global    i/o: Dump dumpFlag     */
+/*         calls: qIsEmpty()        */
+/*         calls: doCompactPart1()  */
+/*         calls: dumpState()       */
+/*         calls: doCompactPart2()  */
+/*                                  */
 void doCompact()
 {
    /* make sure we still have something left in the queue */
