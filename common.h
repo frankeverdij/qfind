@@ -1162,6 +1162,37 @@ void doCompactPart1()
    qStart = ++x;     /* mark start of queue */
 }
 
+/*                                  */
+/*      function: doCompactPart2    */
+/* global output: int qTail         */
+/* global    i/o: node *hash        */
+/* global  input: int *params       */
+/* global  input: node qStart       */
+/* global  input: node qEnd         */
+/* global    i/o: row *rows         */
+/* global    i/o: node qhead        */
+/* global    i/o: uint32_t *deepRowIndices */
+/* global  input: row **deepRows    */
+/* global  input: int period        */
+/* global  input: node *base        */
+/* global output: uint32_t deepQHead */
+/* global output: uint32_t deepQTail */
+/*         calls: enqueue           */
+/*      inherits:                   */
+/* global    i/o: int qTail         */
+/* global    i/o: node *base        */
+/* global    i/o: uint32_t deepQTail*/
+/*      inherits from qFull:        */
+/* global    i/o: int aborting      */
+/*         calls: setVisited        */
+/*      inherits:                   */
+/* global  input: int nRowsInState  */
+/* global  input: int width         */
+/*         calls: rephase           */
+/*      inherits:                   */
+/* global    i/o: int queuePhase    */
+/* global    i/o: node nextRephase  */
+/*                                  */
 void doCompactPart2()
 {
    node x,y;
@@ -1184,6 +1215,13 @@ void doCompactPart2()
       }
       enqueue(y,ROW(x));
       //if (aborting) return;    /* why is this here? value of aborting is not changed by enqueue(). */
+      /*
+        FE: This is false, because:
+        1) enqueue() can call qFull() which can set aborting to something
+           else than zero.
+        2) It is possible that another function can set aborting before
+           calling this function.
+      */
       if (qHead == x) qHead = qTail - 1;
       setVisited(qTail - 1);
    }
@@ -1220,6 +1258,7 @@ void doCompactPart2()
       if(deepRowIndices[j] > 1){
          y = x;
          for(k = 0; k < 2*period; ++k){
+         /* FE: Danger! startRow is also a global variable */
             uint16_t startRow = deepRows[deepRowIndices[j]][1] + 1;
             if(deepRows[deepRowIndices[j]][startRow - k] != ROW(y)){
                fprintf(stderr, "Warning: non-matching rows detected at node %u in doCompactPart2()\n",x);
