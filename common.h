@@ -185,24 +185,24 @@ void genStatCounts(const int symmetry, const int wi, const char *table2, uint32_
 /*                                              */
 void makeTables() {
    causesBirth = (unsigned char*)malloc((long long)sizeof(*causesBirth)<<width);
-   gInd3 = (uint16_t **)calloc(sizeof(*gInd3),(1LL<<(width*2))) ;
-   rowHash = (int *)calloc(sizeof(int),(2LL<<(width*2))) ;
+   gInd3 = (uint16_t **)calloc(1LL<<(width*2),sizeof(*gInd3)) ;
+   rowHash = (int *)calloc(2LL<<(width*2),sizeof(int)) ;
    memset(rowHash, -1, sizeof(int)*(2LL<<(width*2)));
 
-   gcount = (uint32_t *)calloc(sizeof(*gcount), (1LL << width));
+   gcount = (uint32_t *)calloc(1LL << width, sizeof(*gcount));
    memusage += (sizeof(*gInd3)+2*sizeof(int)) << (width*2) ;
    uint32_t i;
    for(i = 0; i < 1 << width; ++i)
        causesBirth[i] = (evolveRow(i, 0, 0, nttable2, width, params[P_SYMMETRY]) ? 1 : 0);
 
-   gWorkConcat = (int *)calloc(sizeof(int), (3LL*params[P_NUMTHREADS])<<width);
+   gWorkConcat = (int *)calloc((3LL*params[P_NUMTHREADS])<<width,sizeof(int));
    if (params[P_REORDER] == 1)
       genStatCounts(params[P_SYMMETRY], width, nttable2, gcount) ;
    if (params[P_REORDER] == 2)
       for (int i=1; i<1<<width; i++)
          gcount[i] = 1 + gcount[i & (i - 1)] ;
    gcount[0] = 0xffffffff;  /* Maximum value so empty row is chosen first */
-   valorder = (uint16_t *)calloc(sizeof(uint16_t), 1LL << width) ;
+   valorder = (uint16_t *)calloc(1LL << width,sizeof(uint16_t)) ;
    for (int i=0; i<1<<width; i++)
       valorder[i] = (1<<width)-1-i ;
    if (params[P_REORDER] != 0)

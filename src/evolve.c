@@ -101,7 +101,7 @@ int evolveRowLow(const int row1, const int row2, const int row3, const int bits,
 **   the edge conditions appropriately.
 */
 void genStatCounts(const int symmetry, const int wi, const char *table2, uint32_t *gc) {
-   int *cnt = (int*)calloc((128 * sizeof(int)), 1LL << wi) ;
+   int *cnt = (int*)calloc(128LL << wi, sizeof(int)) ;
    int s = 0 ;
    if (symmetry == SYM_ODD)
       s = 2 ;

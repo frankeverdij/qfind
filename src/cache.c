@@ -52,9 +52,8 @@ int cacheallocate(const int memlimit, const int * const pm) {
         printf("Not enough memory to allocate lookahead cache\n");
         exit(0);
     }
-    totalCache = (cacheentry *)calloc(sizeof(cacheentry),
-         (cachesize + 5) * pm[P_NUMTHREADS]) ;
-    cache = (cacheentry **)calloc(sizeof(**cache), pm[P_NUMTHREADS]);
+    totalCache = (cacheentry *)calloc((cachesize + 5) * pm[P_NUMTHREADS], sizeof(cacheentry)) ;
+    cache = (cacheentry **)calloc(pm[P_NUMTHREADS], sizeof(**cache));
    
     for (int i = 0; i < pm[P_NUMTHREADS]; i++)
         cache[i] = totalCache + (cachesize + 5) * i;
