@@ -190,7 +190,15 @@ void makeTables() {
    memset(rowHash, -1, sizeof(int)*(2LL<<(width*2)));
 
    gcount = (uint32_t *)calloc(1LL << width, sizeof(*gcount));
-   memusage += (sizeof(*gInd3)+2*sizeof(int)) << (width*2) ;
+
+   printf("Memusage               %llu kb\n",memusage>>10);
+   memusage += ((sizeof(*gInd3)+2*sizeof(int)) << (width*2)) + ((sizeof(*causesBirth)+sizeof(*gcount))<<width);
+   
+   printf("Allocated: CausesBirth %lu kb\n",(sizeof(*causesBirth)<<width)>>10);
+   printf("           gInd3       %llu kb\n",(sizeof(*gInd3)*(1LL<<(width*2)))>>10);
+   printf("           rowHash     %llu kb\n",(sizeof(int)*(2LL<<(width*2)))>>10);
+   printf("           gcount      %llu kb\n",(sizeof(*gcount)*(1LL << width))>>10);
+   printf("New memusage           %llu kb\n",memusage>>10);
    uint32_t i;
    for(i = 0; i < 1 << width; ++i)
        causesBirth[i] = (evolveRow(i, 0, 0, nttable2, width, params[P_SYMMETRY]) ? 1 : 0);
@@ -203,6 +211,12 @@ void makeTables() {
          gcount[i] = 1 + gcount[i & (i - 1)] ;
    gcount[0] = 0xffffffff;  /* Maximum value so empty row is chosen first */
    valorder = (uint16_t *)calloc(1LL << width,sizeof(uint16_t)) ;
+   
+   memusage += (sizeof(uint16_t)) << width + sizeof(int)*((3LL*params[P_NUMTHREADS])<<width);
+   printf("Allocated: gWorkConcat %llu kb\n",(sizeof(int)*((3LL*params[P_NUMTHREADS])<<width))>>10);
+   printf("           valorder    %lu kb\n",(sizeof(uint16_t) << width)>>10);
+   printf("New memusage           %llu kb\n",memusage>>10);
+   
    for (int i=0; i<1<<width; i++)
       valorder[i] = (1<<width)-1-i ;
    if (params[P_REORDER] != 0)
@@ -223,7 +237,8 @@ unsigned int hashRow(uint16_t *theRow, int siz) {
       h = h * 3 + theRow[i] ;
    return h ;
 }
-
+uint16_t maxmakerow=0;
+int countmakerow=0;
 /*                                  */
 /*      function: makeRow           */
 /*         input: int row1, row2    */
@@ -311,13 +326,16 @@ uint16_t *makeRow(int row1, int row2) {
    
 /*
  *   For debugging:
- *
-   printf("R") ;
-   for (int i=0; i<1+(1<<width)+good; i++)
-      printf(" %d", theRow[i]) ;
-   printf("\n") ;
-   fflush(stdout) ;
  */
+   for (int i=0; i<1+(1<<width)+good; i++) {
+      ++countmakerow;
+      if (theRow[i] >maxmakerow) {
+      maxmakerow=theRow[i];
+      printf(" %d", maxmakerow) ;
+      }
+   }
+   fflush(stdout) ;
+ 
  
    return theRow ;
 }

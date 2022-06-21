@@ -7,7 +7,7 @@ CC = gcc
 CXX = g++
 
 # gcc compiler flags
-CFLAGS = -O3 -fopenmp -march=native -Wall -I.
+CFLAGS = -g -O3 -fopenmp -march=native -Wall -I.
 
 # g++ compiler flags
 CXXFLAGS = -O3 -fopenmp -march=native -Wall -I.

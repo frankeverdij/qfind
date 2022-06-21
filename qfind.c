@@ -19,7 +19,9 @@ int lookAhead(row *pRows, int a, int pPhase, const int *pm){
    uint16_t *riStart11, *riStart12, *riStart13, *riStart22, *riStart23;
    int numRows11, numRows12, numRows13, numRows22, numRows23;
    int row11, row12, row13, row22, row23;
+#ifndef NOCACHE
    int k;
+#endif
    
    getoffsetcount(pRows[a - pm[P_PERIOD] - fwdOff[pPhase]],
                   pRows[a - fwdOff[pPhase]],
@@ -335,7 +337,7 @@ int main(int argc, char *argv[]){
    parseOptions(argc, argv, rule, &mode, params, &newLastDeep, &previewFlag, dumpRoot, &splitNum, initRows, &initRowsFlag, &loadFile, &loadDumpFlag);
    
    searchSetup(loadFile);
-   
+   printf ("countmakerow %d\n",countmakerow);
    printf("Starting search\n");
    fflush(stdout);
    breadthFirst();

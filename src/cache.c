@@ -51,7 +51,8 @@ int cacheallocate(const int memlimit, const int * const pm) {
     if(pm[P_MEMLIMIT] >= 0 && memrequested > memlimit){
         printf("Not enough memory to allocate lookahead cache\n");
         exit(0);
-    }
+    } else
+        printf("Allocating lookahead cache %d\n",memrequested);
     totalCache = (cacheentry *)calloc((cachesize + 5) * pm[P_NUMTHREADS], sizeof(cacheentry)) ;
     cache = (cacheentry **)calloc(pm[P_NUMTHREADS], sizeof(**cache));
    
