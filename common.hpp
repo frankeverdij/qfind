@@ -1147,6 +1147,10 @@ void dumpState()
    }
    fclose(fp);
    dumpFlag = DUMPSUCCESS;
+   if ( (fp = fopen("backupfile","w")) == NULL )
+      return;
+   fprintf(fp, "%s\n", dumpFile);
+   fclose(fp);
 }
 
 /* ================================= */
