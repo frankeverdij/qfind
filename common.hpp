@@ -27,7 +27,7 @@
 #define STR(x) #x
 #define XSTR(x) STR(x)
 
-#define BANNER XSTR(WHICHPROGRAM)" v2.1 by Matthias Merzenich, 3 May 2021"
+#define BANNER XSTR(WHICHPROGRAM)" v2.2 by Matthias Merzenich, 21 June 2022"
 
 #define FILEVERSION ((unsigned long) 2021050301)  /* yyyymmddnn */
 
@@ -427,8 +427,8 @@ int bbuf_left = 0 ;
 /* reduce fragmentation by allocating chunks larger than needed and */
 /* parceling out the small pieces.                                  */
 uint16_t *bmalloc(int siz) {
-   if (siz > bbuf_left) {
-      bbuf_left = 1 << (2 * width) ;
+   if (siz + (1<<width) > bbuf_left) {
+      bbuf_left = 1 << (2 * width) + (1<<width) ;
       memusage += 2*bbuf_left ;
       if (params[P_MEMLIMIT] >= 0 && memusage > memlimit) {
          printf("Aborting due to excessive memory usage\n") ;
@@ -923,10 +923,10 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    patternBuf = (char*)realloc(patternBuf, ((2 * MAXWIDTH + 4) * sxsAllocRows + 300) * sizeof(char));
    
    sprintf(patternBuf,"x = %d, y = %d, rule = %s\n", swidth - margin, nrows, rule);
-      
-   while (nrows-- > 0) {
-      if (margin > nrows) bufRow(ssrows[nrows], srows[nrows], margin - nrows);
-      else bufRow(ssrows[nrows], srows[nrows], 0);
+   
+   int theBufRow = -1;
+   while(theBufRow++ < nrows){
+      bufRow(ssrows[theBufRow], srows[theBufRow], 0);
    }
    RLEchar = '!';
    bufRLE('\0');
@@ -1512,12 +1512,12 @@ void saveDepthFirst(node theNode, uint16_t startRow, uint16_t howDeep, row *pRow
 /* ========================== */
 
 /* Note: currently reserving -v for potentially editing an array of extra variables */
-void usage(){
+void usage(char *programName){
 #ifndef QSIMPLE
-   printf("Usage: \"qfind options\"\n");
-   printf("  e.g. \"qfind -r B3/S23 -p 3 -y 1 -w 6 -s even\" searches Life (rule B3/S23)\n");
-   printf("  for c/3 orthogonal spaceships with even bilateral symmetry and a\n");
-   printf("  logical width of 6 (full width 12).\n");
+   printf("Usage: \"%s options\"\n", programName);
+   printf("  e.g. \"%s -r B3/S23 -p 3 -y 1 -w 6 -s even\"\n", programName);
+   printf("  searches Life (rule B3/S23) for c/3 orthogonal spaceships with\n");
+   printf("  even bilateral symmetry and a logical width of 6 (full width 12).\n");
 #else
    printf("Three required parameters, the period, offset, and width, must be\n");
    printf("set within the code before it is compiled. You have compiled with\n");
@@ -1614,6 +1614,7 @@ void echoParams(){
 
 static void preview(int allPhases) {
    node i,j,k;
+   row *pRows;
    int ph;
 
    for (i = qHead; (i<qTail) && EMPTY(i); i++);
@@ -1622,7 +1623,29 @@ static void preview(int allPhases) {
    
    while (j>=i && !aborting) {
       if (!EMPTY(j)) {
-         success(j, NULL, 0, 0);
+         uint32_t theDeepIndex = deepRowIndices[deepQHead + j - qHead];
+         
+         if(theDeepIndex > 1){
+            pRows = (row*) malloc((2*period + 1 + deepRows[theDeepIndex][0]
+                                   - deepRows[theDeepIndex][1] + 1) * (long long)sizeof(*pRows));
+            int m;
+            node x = j;
+            for(m = 2*period; m >= 0; --m){
+               pRows[m] = ROW(x);
+               x = PARENT(x);
+            }
+            memcpy(pRows + 2*period+1,
+                   deepRows[theDeepIndex] + 2 + deepRows[theDeepIndex][1],
+                   (deepRows[theDeepIndex][0] - deepRows[theDeepIndex][1] + 1) * (long long)sizeof(*pRows));
+            uint32_t currRow = 2*period + 1  + deepRows[theDeepIndex][0]
+                                             - deepRows[theDeepIndex][1]
+                                             + 1;
+            success(j, pRows, 2*period, currRow - 1);
+            free(pRows);
+         }
+         else{
+            success(j, NULL, 0, 0);
+         }
          if (allPhases == 0) {
             k=j;
             for (ph = 1; ph < period; ph++) {
@@ -1930,6 +1953,7 @@ void setDefaultParams(){
 
 /* Note: currently reserving -v for potentially editing an array of extra variables */
 void parseOptions(int argc, char *argv[]){
+   char *programName = argv[0];
    while(--argc > 0){               /* read input parameters */
       if ((*++argv)[0] == '-'){
          switch ((*argv)[1]){
@@ -2044,7 +2068,7 @@ void parseOptions(int argc, char *argv[]){
                break;
             case '-':
                if(!strcmp(*argv,"--help") || !strcmp(*argv,"--Help")){
-                  usage();
+                  usage(programName);
                   exit(0);
                }
                else{
