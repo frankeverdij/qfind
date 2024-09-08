@@ -1,6 +1,6 @@
 /* This header file contains functions common to both qfind and qfind-s.
 ** Some functions contained in this file work slightly differently depending
-** on whether qfind or or qfind-s is being compiled.  Such differences are
+** on whether qfind or qfind-s is being compiled.  Such differences are
 ** determined by the presence of the macro QSIMPLE defined in qfind-s.cpp.
 */
 
@@ -27,9 +27,9 @@
 #define STR(x) #x
 #define XSTR(x) STR(x)
 
-#define BANNER XSTR(WHICHPROGRAM)" v2.2 by Matthias Merzenich, 21 June 2022"
+#define BANNER XSTR(WHICHPROGRAM)" v2.3 by Matthias Merzenich, 19 March 2023"
 
-#define FILEVERSION ((unsigned long) 2021050301)  /* yyyymmddnn */
+#define FILEVERSION ((unsigned long) 2023031901)  /* yyyymmddnn */
 
 #define MAXPERIOD 30
 #define CHUNK_SIZE 64
@@ -42,12 +42,12 @@
 #define P_PERIOD 1
 #define P_OFFSET 2
 #define P_SYMMETRY 3
-#define P_REORDER 4
+#define P_REORDER 4           /* currently cannot be set at runtime */
 #define P_CHECKPOINT 5
 #define P_BASEBITS 6
 #define P_QBITS 7
 #define P_HASHBITS 8 
-#define P_DEPTHLIMIT 9 
+#define P_DEPTHLIMIT 9        /* currently cannot be set at runtime */
 #define P_NUMTHREADS 10
 #define P_MINDEEP 11
 #define P_MEMLIMIT 12
@@ -57,23 +57,28 @@
 #define P_LASTDEEP 16
 #define P_NUMSHIPS 17
 #define P_MINEXTENSION 18
+#define P_FULLPERIOD 19
+#define P_BOUNDARYSYM 20
 
-#define NUM_PARAMS 19
+#define NUM_PARAMS 21U
 
+#define SYM_UNDEF 0
 #define SYM_ASYM 1
 #define SYM_ODD 2
 #define SYM_EVEN 3
 #define SYM_GUTTER 4
 
-const char *rule = "B3/S23";
-char loadRule[256]; /* used for loading rule from file */
+const char *rule = "B3/S23";     /* Default rule set to B3/S23 (Life) */
+char loadRule[256];              /* Used for loading rule from file */
+char trueRule[256];              /* Used in case of forbidden conditions */
+int forbiddenBirths = 0;         /* Used to indicate if there are forbidden birth conditions */
 
 char *initRows;
 
 int params[NUM_PARAMS];
 int width;
 int deepeningAmount;
-int nRowsInState;
+int nRowsInState;                /* Could be replaced with 2*period.  Should be removed. */
 int phase;
 
 int period;
@@ -91,10 +96,10 @@ enum Mode {
 
 /* the big data structures */
 #define qBits params[P_QBITS]
-#define QSIZE (1<<qBits)
+#define QSIZE (1LLU<<qBits)
 
 #define hashBits params[P_HASHBITS]
-#define HASHSIZE (1<<hashBits)
+#define HASHSIZE (1LLU<<hashBits)
 #define HASHMASK (HASHSIZE - 1)
 
 typedef uint32_t node;
@@ -150,7 +155,7 @@ cacheentry **cache;
 ** PARENT(b) returns the index of the parent of b
 */
 
-#define MAXWIDTH (14)
+#define MAXWIDTH (14)   /* hard limit as long as rows are of type uint16_t */
 
 #define ROWBITS ((1<<width)-1)
 #define BASEBITS (params[P_BASEBITS])
@@ -164,12 +169,26 @@ cacheentry **cache;
 #define PARENT(i) (base[(i)>>BASEBITS]+ROFFSET(i))
 #define FIRSTBASE(i) (((i) & ((1<<BASEBITS) - 1)) == 0)
 
-#define MINDEEP ((params[P_MINDEEP]>0) ? params[P_MINDEEP] : period)
+#define MINDEEP ((params[P_MINDEEP]>0) ? params[P_MINDEEP] : 3)
 
 int gcd(int a, int b) {
    if (a > b) return gcd(b,a);
    else if (a == 0) return b;
    else return gcd(b-a,a);
+}
+
+/* =============================== */
+/*  Display current date and time  */
+/* =============================== */
+
+static char timeStr[20] = "00/00/00 00:00:00 ";
+
+static void timeStamp() {
+   time_t t;
+   
+   time(&t);
+   strftime(timeStr, 20, "%d/%m/%y %H:%M:%S ", localtime(&t));
+   printf("%s", timeStr);
 }
 
 /* =========================================== */
@@ -226,16 +245,31 @@ const char *parseRule(const char *rule, int *tab) {
             return "Expected S after slash" ;
       }
       p++ ;
-      while (*p != '/' && *p != 0) {
-         if (!('0' <= *p || *p <= '9'))
+      int allowed = 1 ;
+      while (*p != '/' && *p != '\0') {
+         if (*p == '~'){
+            p++ ;
+            if (allowed == -1 || *p == '~'){
+               if (bs)
+                  return "Can't have multiple tildes in survival conditions" ;
+               else
+                  return "Can't have multiple tildes in birth conditions" ;
+            }
+            if (*p == '/' || *p == '\0')
+               continue ;
+            allowed = -1 ;  /* table entry will be -1 if condition is forbidden */
+         }
+         if (!('0' <= *p && *p <= '9'))
             return "Missing number in rule" ;
+         if (*p == '9')
+            return "Unexpected character in rule" ;
          char dig = *p++ ;
          int neg = 0 ;
-         if (*p == '/' || *p == 0 || *p == '-' || ('0' <= *p && *p <= '8'))
+         if (*p == '/' || *p == '\0' || *p == '-' || *p == '~' || ('0' <= *p && *p <= '8'))
             for (int i=0; i<256; i++)
                if (rulekeys[i][0] == dig)
-                  tab[bs+i] = 1 ;
-         for (; *p != '/' && *p != 0 && !('0' <= *p && *p <= '8'); p++) {
+                  tab[bs+i] = 1*allowed ;
+         for (; *p != '/' && *p != '\0' && *p != '~' && !('0' <= *p && *p <= '8'); p++) {
             if (*p == '-') {
                if (neg)
                   return "Can't have multiple negation signs" ;
@@ -244,7 +278,7 @@ const char *parseRule(const char *rule, int *tab) {
                int used = 0 ;
                for (int i=0; i<256; i++)
                   if (rulekeys[i][0] == dig && rulekeys[i][1] == *p) {
-                     tab[bs+i] = 1-neg ;
+                     tab[bs+i] = (1-neg)*allowed ;
                      used++ ;
                   }
                if (!used)
@@ -310,8 +344,11 @@ int evolveRow(int row1, int row2, int row3){
    int row4;
    int row1_s,row2_s,row3_s;
    int j,s = 0;
+   int t = 0;
+   int theBit;
    if(params[P_SYMMETRY] == SYM_ODD) s = 1;
-   if(evolveBitShift(row1, row2, row3, width - 1)) return -1;
+   if(params[P_BOUNDARYSYM] == SYM_UNDEF && evolveBitShift(row1, row2, row3, width - 1)) return -1;
+   if(params[P_BOUNDARYSYM] == SYM_ODD) t = 1;
    if(params[P_SYMMETRY] == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2)) return -1;
    if(params[P_SYMMETRY] == SYM_ODD || params[P_SYMMETRY] == SYM_EVEN){
       row1_s = (row1 << 1) + ((row1 >> s) & 1);
@@ -323,20 +360,37 @@ int evolveRow(int row1, int row2, int row3){
       row2_s = (row2 << 1);
       row3_s = (row3 << 1);
    }
+   if(params[P_BOUNDARYSYM] == SYM_ODD || params[P_BOUNDARYSYM] == SYM_EVEN){
+      row1 += ((row1 >> (width-1-t)) & 1) << (width);
+      row2 += ((row2 >> (width-1-t)) & 1) << (width);
+      row3 += ((row3 >> (width-1-t)) & 1) << (width);
+   }
    row4 = evolveBit(row1_s, row2_s, row3_s);
-   for(j = 1; j < width; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
+   if (row4 == -1) return -1;
+   for(j = 1; j < width; j++){
+      theBit = evolveBitShift(row1, row2, row3, j - 1);
+      if (theBit == -1) return -1;
+      row4 += theBit << j;
+   }
    return row4;
 }
 
 int evolveRowHigh(int row1, int row2, int row3, int bits){
    int row4=0;
-   int row1_s,row2_s,row3_s;
-   int j ;
-   if(evolveBitShift(row1, row2, row3, width - 1)) return -1;
-   row1_s = (row1 << 1);
-   row2_s = (row2 << 1);
-   row3_s = (row3 << 1);
-   for(j = width-bits; j < width; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
+   int j,t = 0;
+   int theBit;
+   if(params[P_BOUNDARYSYM] == SYM_UNDEF && evolveBitShift(row1, row2, row3, width - 1)) return -1;
+   if(params[P_BOUNDARYSYM] == SYM_ODD) t = 1;
+   if(params[P_BOUNDARYSYM] == SYM_ODD || params[P_BOUNDARYSYM] == SYM_EVEN){
+      row1 += ((row1 >> (width-1-t)) & 1) << (width);
+      row2 += ((row2 >> (width-1-t)) & 1) << (width);
+      row3 += ((row3 >> (width-1-t)) & 1) << (width);
+   }
+   for(j = width-bits; j < width; j++){
+      theBit = evolveBitShift(row1, row2, row3, j - 1);
+      if (theBit == -1) return -1;
+      row4 += theBit << j;
+   }
    return row4;
 }
 
@@ -344,6 +398,7 @@ int evolveRowLow(int row1, int row2, int row3, int bits){
    int row4;
    int row1_s,row2_s,row3_s;
    int j,s = 0;
+   int theBit;
    if(params[P_SYMMETRY] == SYM_ODD) s = 1;
    if(params[P_SYMMETRY] == SYM_ASYM && evolveBit(row1 << 2, row2 << 2, row3 << 2)) return -1;
    if(params[P_SYMMETRY] == SYM_ODD || params[P_SYMMETRY] == SYM_EVEN){
@@ -357,10 +412,19 @@ int evolveRowLow(int row1, int row2, int row3, int bits){
       row3_s = (row3 << 1);
    }
    row4 = evolveBit(row1_s, row2_s, row3_s);
-   for(j = 1; j < bits; j++)row4 += evolveBitShift(row1, row2, row3, j - 1) << j;
+   if (row4 == -1) return -1;
+   for(j = 1; j < bits; j++){
+      theBit = evolveBitShift(row1, row2, row3, j - 1);
+      if (theBit == -1) return -1;
+      row4 += theBit << j;
+   }
    return row4;
 }
 
+/* sortRows() is used to sort the global array valorder. This array    */
+/* determines the order in which new rows are added in the search. The */
+/* idea is that certain search orders give slightly quicker solutions  */
+/* during depthFirst() and LookAhead() than the naive order.           */
 void sortRows(uint16_t *theRow, uint32_t totalRows) {
    uint32_t i;
    int64_t j;
@@ -375,6 +439,7 @@ void sortRows(uint16_t *theRow, uint32_t totalRows) {
       theRow[j+1] = t;
    }
 }
+
 uint16_t *makeRow(int row1, int row2) ;
 
 uint16_t *getoffset(int row1, int row2) {
@@ -394,6 +459,7 @@ int *gWorkConcat ;      /* gWorkConcat to be parceled out between threads */
 int *rowHash ;
 uint16_t *valorder ;
 void genStatCounts() ;
+
 void makeTables() {
    causesBirth = (unsigned char*)malloc((long long)sizeof(*causesBirth)<<width);
    gInd3 = (uint16_t **)calloc(sizeof(*gInd3),(1LL<<(width*2))) ;
@@ -405,12 +471,12 @@ void makeTables() {
    gcount = (uint32_t *)calloc(sizeof(*gcount), (1LL << width));
    memusage += (sizeof(*gInd3)+2*sizeof(int)) << (width*2) ;
    uint32_t i;
-   for(i = 0; i < 1 << width; ++i) causesBirth[i] = (evolveRow(i,0,0) ? 1 : 0);
-   for(i = 0; i < 1 << width; ++i) gcount[i] = 0 ;
+   for(i = 0; i < 1LLU << width; ++i) causesBirth[i] = (evolveRow(i,0,0) ? 1 : 0);
+   for(i = 0; i < 1LLU << width; ++i) gcount[i] = 0 ;
    gWorkConcat = (int *)calloc(sizeof(int), (3LL*params[P_NUMTHREADS])<<width);
    if (params[P_REORDER] == 1)
       genStatCounts() ;
-   if (params[P_REORDER] == 2)
+   if (params[P_REORDER] == 2)   /* this option currently cannot be set at runtime */
       for (int i=1; i<1<<width; i++)
          gcount[i] = 1 + gcount[i & (i - 1)] ;
    gcount[0] = 0xffffffff;  /* Maximum value so empty row is chosen first */
@@ -422,13 +488,15 @@ void makeTables() {
    for (int row2=0; row2<1<<width; row2++)
       makeRow(0, row2) ;
 }
+
 uint16_t *bbuf ;
-int bbuf_left = 0 ;
-/* reduce fragmentation by allocating chunks larger than needed and */
-/* parceling out the small pieces.                                  */
+long long int bbuf_left = 0 ;
+
+/* reduce fragmentation by allocating chunks larger */
+/* than needed and parceling out the small pieces.  */
 uint16_t *bmalloc(int siz) {
    if (siz + (1<<width) > bbuf_left) {
-      bbuf_left = 1 << (2 * width) + (1<<width) ;
+      bbuf_left = (1LL << (2 * width)) + (1LL<<width) ;
       memusage += 2*bbuf_left ;
       if (params[P_MEMLIMIT] >= 0 && memusage > memlimit) {
          printf("Aborting due to excessive memory usage\n") ;
@@ -441,10 +509,14 @@ uint16_t *bmalloc(int siz) {
    bbuf_left -= siz ;
    return r ;
 }
+
 void unbmalloc(int siz) {
    bbuf -= siz ;
    bbuf_left += siz ;
 }
+
+/* hashRow() is used to identify if we've already */
+/* built an identical part of the lookup table.   */
 unsigned int hashRow(uint16_t *theRow, int siz) {
    unsigned int h = 0 ;
    for (int i=0; i<siz; i++)
@@ -458,6 +530,14 @@ uint16_t *makeRow(int row1, int row2) {
    int *gWork = gWorkConcat + ((3LL * omp_get_thread_num()) << width);
    int *gWork2 = gWork + (1 << width) ;
    int *gWork3 = gWork2 + (1 << width) ;
+   /* For each row3, find all row4 such that   */
+   /*                                          */
+   /*      row1   evolves into                 */
+   /*      row2 ----------------> row4         */
+   /*      row3                                */
+   /*                                          */
+   /* list of row4s is stored in gwork and     */
+   /* corresponding row3s are stored in gwork2 */
    if (width < 4) {
       for (int row3=0; row3<1<<width; row3++)
          gWork3[row3] = evolveRow(row1, row2, row3) ;
@@ -484,8 +564,8 @@ uint16_t *makeRow(int row1, int row2) {
       gWork[good++] = row4 ;
    }
    
-   /* bmalloc, unbmalloc, and all operations that read or write to row, */
-   /* rowHash, and gInd3 must be included in a critical region.         */
+   /* bmalloc, unbmalloc, and all operations that read from or write to */
+   /* theRow, rowHash, and gInd3 must be included in a critical region. */
    uint16_t *theRow;
    #pragma omp critical(updateTable)
    {
@@ -865,7 +945,7 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
       nrows--;
    }
    
-   /* sanity check: are all rows empty? */
+   /* sanity check: is the pattern nonempty? */
    int allEmpty = 1;
    for(i = 0; i < nrows; i++){
       if(srows[i]){
@@ -902,7 +982,7 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    /* compute margin on other side of width */
    margin = 0;
 
-   /* make sure we didn't just output the exact same pattern (happens a lot for puffer) */
+   /* make sure we didn't just output the exact same pattern */
    if(printExpected){
       if (nrows == oldnrows) {
          int different = 0;
@@ -922,12 +1002,13 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    /* Buffer output */
    patternBuf = (char*)realloc(patternBuf, ((2 * MAXWIDTH + 4) * sxsAllocRows + 300) * sizeof(char));
    
-   sprintf(patternBuf,"x = %d, y = %d, rule = %s\n", swidth - margin, nrows, rule);
+   sprintf(patternBuf,"x = %d, y = %d, rule = %s\n", swidth - margin, nrows, trueRule);
    
    int theBufRow = -1;
    while(theBufRow++ < nrows){
       bufRow(ssrows[theBufRow], srows[theBufRow], 0);
    }
+   RLEcount = 1;     /* prevents erroneous printing of '2' at end of RLE */
    RLEchar = '!';
    bufRLE('\0');
    sprintf(patternBuf+strlen(patternBuf),"\n");
@@ -942,7 +1023,15 @@ int bufferPattern(node b, row *pRows, int nodeRow, uint32_t lastRow, int printEx
    return 1;
 }
 
+#ifndef QSIMPLE
+void makeSubperiodTables();
+int subperiodic(node x, row *pRows, int nodeRow, uint32_t lastRow);
+#endif
+
 void success(node b, row *pRows, int nodeRow, uint32_t lastRow){
+#ifndef QSIMPLE
+   if (subperiodic(b, pRows, nodeRow, lastRow)) return;
+#endif
    if(bufferPattern(b, pRows, nodeRow, lastRow, 1))
       printf("\n%s\n",patternBuf);
    fflush(stdout);
@@ -964,15 +1053,13 @@ int terminal(node n){
    return 1;
 }
 
-
 /* ================================================ */
 /*  Queue of partial patterns still to be examined  */
 /* ================================================ */
 
-/* SU patch */
 node qHead,qTail;
 
-/* PATCH queue dimensions required during save/restore */
+/* Queue dimensions required during save/restore */
 node qStart; /* index of first node in queue */
 node qEnd;   /* index of first unused node after end of queue */
 
@@ -988,7 +1075,7 @@ int queuePhase = 0;
 node nextRephase = 0;
 void rephase() {
    node x, y;
-   while (qHead < qTail && EMPTY(qHead)) qHead++;   /* skip past empty queue cells */
+   while (qHead < qTail && EMPTY(qHead)) qHead++;   /* skip empty queue cells */
    x = qHead;   /* find next item in queue */
    queuePhase = period - 1;
    while (x != 0) {
@@ -1007,7 +1094,8 @@ void rephase() {
    nextRephase = y;
 }
 
-/* phase of an item on the queue */
+/* peekPhase() returns the phase of an element in the queue.  This only */
+/* works for queue elements and should NOT be used on other nodes.      */
 int peekPhase(node i) {
    return (i < nextRephase? queuePhase : (queuePhase+1)%period);
 }
@@ -1023,7 +1111,7 @@ static inline int qIsEmpty() {
 
 void qFull() {
     if (aborting != 2) {
-      printf("Exceeded %d node limit, search aborted\n", QSIZE);
+      printf("Exceeded %llu node limit, search aborted\n", QSIZE);
       fflush(stdout);
       aborting = 2;
    }
@@ -1069,6 +1157,7 @@ static inline node dequeue() {
    return qHead++;
 }
 
+/* Not used, but could be useful in debugging */
 static inline void pop() {
    qTail--;
    while (qTail > qHead && EMPTY(qTail-1)) qTail--;
@@ -1109,14 +1198,14 @@ FILE * openDumpFile()
 void dumpState()
 {
    FILE * fp;
-   uint32_t i,j;
+   unsigned long long i,j;
    dumpFlag = DUMPFAILURE;
    if (!(fp = openDumpFile())) return;
    fprintf(fp,"%lu\n",FILEVERSION);
    fprintf(fp,"%s\n",rule);
    fprintf(fp,"%s\n",dumpRoot);
-   for (i = 0; i < NUM_PARAMS; ++i)
-      fprintf(fp,"%d\n",params[i]);
+   for (j = 0; j < NUM_PARAMS; ++j)
+      fprintf(fp,"%d\n",params[j]);
    fprintf(fp,"%d\n",width);
    fprintf(fp,"%d\n",period);
    fprintf(fp,"%d\n",offset);
@@ -1128,7 +1217,7 @@ void dumpState()
    for (i = 0; i < QSIZE; ++i){
       if (deepRowIndices[i]){
          if (deepRowIndices[i] > 1){
-            for (j = 0; j < deepRows[deepRowIndices[i]][0] + 1 + 2; ++j){
+            for (j = 0; j < deepRows[deepRowIndices[i]][0] + 1LU + 2LU; ++j){
                fprintf(fp,"%u\n",deepRows[deepRowIndices[i]][j]);
             }
          }
@@ -1139,7 +1228,7 @@ void dumpState()
                if (deepRowIndices[i] == 1) ++j;
                ++i;
             }
-            fprintf(fp,"%u\n",j);
+            fprintf(fp,"%llu\n",j);
             if (i == QSIZE) break;
             --i;
          }
@@ -1188,8 +1277,8 @@ long currentDepth() {
 }
 
 /*
-** doCompact() now has two parts.  The first part compresses
-** the queue.  The second part consists of the last loop which
+** doCompact() has two parts.  The first part compresses the
+** queue.  The second part consists of the last loop which
 ** converts parent bits to back parent pointers.  The search
 ** state may be saved in between.  The queue dimensions, which
 ** were previously saved in local variables are saved in globals.
@@ -1253,7 +1342,8 @@ void doCompactPart1()
 void doCompactPart2()
 {
    node x,y;
-   uint32_t i, j, k;
+   uint32_t i, j;
+   int k;
    
    /*
       Make a pass forwards converting parent bits back to parent pointers.
@@ -1389,12 +1479,10 @@ static void deepen(){
    node i;
 
    /* compute amount to deepen, apply reduction if too deep */
-#ifdef PATCH07
    timeStamp();
-#endif
    printf("Queue full");
    i = currentDepth();
-   if (i >= params[P_LASTDEEP]) deepeningAmount = MINDEEP;
+   if (i >= (unsigned long long)params[P_LASTDEEP]) deepeningAmount = MINDEEP;
    else deepeningAmount = params[P_LASTDEEP] + MINDEEP - i;   /* go at least MINDEEP deeper */
 
    params[P_LASTDEEP] = i + deepeningAmount;
@@ -1450,9 +1538,7 @@ static void deepen(){
    /* Report successful/unsuccessful dump */
    if (dumpFlag == DUMPSUCCESS)
    {
-#ifdef PATCH07
       timeStamp();
-#endif
        printf("State dumped to %s\n",dumpFile);
        /*analyse();
        if (chainWidth)
@@ -1462,9 +1548,7 @@ static void deepen(){
    }
    else if (dumpFlag == DUMPFAILURE)
    {
-#ifdef PATCH07
       timeStamp();
-#endif
       printf("State dump unsuccessful\n");
    }
    
@@ -1474,7 +1558,7 @@ static void deepen(){
 static void breadthFirst()
 {
    while (!aborting && !qIsEmpty()) {
-      if (qTail - qHead >= (1<<params[P_DEPTHLIMIT]) || qTail >= QSIZE - QSIZE/16 ||
+      if (qTail - qHead >= (1LLU<<params[P_DEPTHLIMIT]) || qTail >= QSIZE - QSIZE/16 ||
           qTail >= QSIZE - (deepeningAmount << 2)) deepen();
       else process(dequeue());
    }
@@ -1485,8 +1569,8 @@ void saveDepthFirst(node theNode, uint16_t startRow, uint16_t howDeep, row *pRow
    #pragma omp critical(findDeepIndex)
    {
       theDeepIndex = 2;
-      while(deepRows[theDeepIndex] && theDeepIndex < 1 << (params[P_DEPTHLIMIT] + 1)) ++theDeepIndex;
-      if(theDeepIndex == 1 << (params[P_DEPTHLIMIT] + 1)){
+      while(deepRows[theDeepIndex] && theDeepIndex < 1LLU << (params[P_DEPTHLIMIT] + 1)) ++theDeepIndex;
+      if(theDeepIndex == 1LLU << (params[P_DEPTHLIMIT] + 1)){
          fprintf(stderr,"Error: no available extension indices.\n");
          aborting = 1;
       }
@@ -1519,31 +1603,37 @@ void usage(char *programName){
    printf("  searches Life (rule B3/S23) for c/3 orthogonal spaceships with\n");
    printf("  even bilateral symmetry and a logical width of 6 (full width 12).\n");
 #else
-   printf("Three required parameters, the period, offset, and width, must be\n");
-   printf("set within the code before it is compiled. You have compiled with\n");
+   printf("The period and offset must be set within the code before it is compiled.\n");
+   printf("You have compiled with\n");
    printf("\n");
    printf("Period: %d\n",PERIOD);
    printf("Offset: %d\n",OFFSET);
-   printf("Width:  %d\n",WIDTH);
 #endif
    printf("\n");
    printf("Available options:\n");
    printf("  -r bNN/sNN  searches for spaceships in the specified rule (default: b3/s23)\n");
    printf("              Non-totalistic rules can be entered using Hensel notation.\n");
+   printf("              Optionally, Use a tilde (~) to indicate forbidden conditions.\n");
    printf("\n");
 #ifndef QSIMPLE
    printf("  -p NN  searches for spaceships with period NN\n");
    printf("  -y NN  searches for spaceships that travel NN cells every period\n");
+#endif
    printf("  -w NN  searches for spaceships with logical width NN\n");
    printf("         (full width depends on symmetry type)\n");
-#endif
    printf("  -s FF  searches for spaceships with symmetry type FF\n");
    printf("         Valid symmetry types are asymmetric, odd, even, and gutter.\n");
+   printf("  -o FF  searches for waves with boundary symmetry type FF\n");
+   printf("         (default: wave search disabled)\n");
+   printf("         Valid symmetry types are odd, even, gutter, and disabled.\n");
+   printf("  -e FF  uses rows in the file FF as the initial rows for the search\n");
+   printf("         (use the companion Golly Lua script to easily generate the\n");
+   printf("         initial row file)\n");
    printf("\n");
 #ifdef _OPENMP
    printf("  -t NN  runs search using NN threads during deepening step (default: 1)\n");
 #endif
-   printf("  -i NN  sets minimum deepening increment to NN (default: period)\n");
+   printf("  -i NN  sets minimum deepening increment to NN (default: 3)\n");
    printf("  -n NN  deepens to total depth at least NN during first deepening step\n");
    printf("         (total depth includes depth of BFS queue)\n");
    printf("  -g NN  stores depth-first extensions of length at least NN (default: 0)\n");
@@ -1551,7 +1641,6 @@ void usage(char *programName){
    printf("  -q NN  sets the BFS queue size to 2^NN (default: %d)\n",QBITS);
    printf("  -h NN  sets the hash table size to 2^NN (default: %d)\n",HASHBITS);
    printf("         Use -h 0 to disable duplicate elimination.\n");
-
    printf("  -b NN  groups 2^NN queue entries to an index node (default: 4)\n");
    printf("  -m NN  limits memory usage to NN megabytes (default: no limit)\n");
 #ifndef NOCACHE
@@ -1562,12 +1651,13 @@ void usage(char *programName){
    printf("  -z     toggles whether to output spaceships found during deepening step\n");
    printf("         (default: output enabled for spaceships found during deepening step)\n");
    printf("         Disabling is useful for searches that find many spaceships.\n");
+#ifndef QSIMPLE
+   printf("  -k     toggles whether to output subperiodic spaceships\n");
+   printf("         (default: output enabled for subperiodic spaceships)\n");
+#endif
    printf("  -a     toggles whether to output longest partial result at end of search\n");
    printf("         (default: output enabled for longest partial result)\n");
    printf("\n");
-   printf("  -e FF  uses rows in the file FF as the initial rows for the search\n");
-   printf("         (use the companion Golly Lua script to easily generate the\n");
-   printf("         initial row file)\n");
    printf("  -d FF  dumps the search state after each queue compaction using\n");
    printf("         file name prefix FF\n");
    printf("  -l FF  loads the search state from the file FF\n");
@@ -1591,6 +1681,15 @@ void echoParams(){
    else if (params[P_SYMMETRY] == SYM_ODD) printf("Symmetry: odd\n");
    else if (params[P_SYMMETRY] == SYM_EVEN) printf("Symmetry: even\n");
    else if (params[P_SYMMETRY] == SYM_GUTTER) printf("Symmetry: gutter\n");
+   if (params[P_BOUNDARYSYM] != SYM_UNDEF){
+      printf("Wave search enabled\nBoundary symmetry: ");
+      if (params[P_BOUNDARYSYM] == SYM_ODD) printf("odd\n");
+      else if (params[P_BOUNDARYSYM] == SYM_EVEN) printf("even\n");
+      else if (params[P_BOUNDARYSYM] == SYM_GUTTER) printf("gutter\n");
+   }
+#ifndef QSIMPLE
+   if (params[P_FULLPERIOD] && gcd(period,offset)>1) printf("Suppress subperiodic results\n");
+#endif
    if (params[P_CHECKPOINT]) printf("Dump state after queue compaction\n");
    printf("Queue size: 2^%d\n",params[P_QBITS]);
    printf("Hash table size: 2^%d\n",params[P_HASHBITS]);
@@ -1606,16 +1705,18 @@ void echoParams(){
    printf("Number of threads: %d\n",params[P_NUMTHREADS]);
    if (params[P_MINEXTENSION]) printf("Save depth-first extensions of length at least %d\n",params[P_MINEXTENSION]);
    if (params[P_LONGEST] == 0) printf("Printing of longest partial result disabled\n");
+   printf("\n");
 }
 
 /* ========================= */
 /*  Preview partial results  */
 /* ========================= */
 
-static void preview(int allPhases) {
-   node i,j,k;
+static void preview(/*int allPhases*/) {
+   node i,j;
    row *pRows;
-   int ph;
+   // int ph;  /* used for allPhases option */
+   // node k;  /* used for allPhases option */
 
    for (i = qHead; (i<qTail) && EMPTY(i); i++);
    for (j = qTail-1; (j>i) && EMPTY(j); j--);
@@ -1646,13 +1747,15 @@ static void preview(int allPhases) {
          else{
             success(j, NULL, 0, 0);
          }
-         if (allPhases == 0) {
+         /*
+         if (allPhases) {
             k=j;
             for (ph = 1; ph < period; ph++) {
                k=PARENT(k);
                success(k, NULL, 0, 0);
             }
          }
+         */
       }
       j--;
    }
@@ -1674,6 +1777,10 @@ void checkParams(){
    
    /* Errors */
    ruleError = parseRule(rule, nttable);
+   int i = 0;
+   while (i < 256 && nttable[i] != -1) i++;
+   if (i < 256) forbiddenBirths = 1;
+   
    if (ruleError != 0){
       fprintf(stderr, "Error: failed to parse rule %s\n", rule);
       fprintf(stderr, "       %s\n", ruleError);
@@ -1683,6 +1790,10 @@ void checkParams(){
    if(gcd(PERIOD,OFFSET) > 1){
       fprintf(stderr, "Error: qfind-s does not support gcd(PERIOD,OFFSET) > 1. Use qfind instead.\n");
       exitFlag = 1;
+   }
+   if (params[P_WIDTH] < 1){
+       fprintf(stderr, "Error: width (-w) must be a positive integer.\n");
+       exitFlag = 1;
    }
 #else
    if(params[P_WIDTH] < 1 || params[P_PERIOD] < 1 || params[P_OFFSET] < 1){
@@ -1702,8 +1813,12 @@ void checkParams(){
       exitFlag = 1;
    }
 #endif
-   if(params[P_SYMMETRY] == 0){
+   if (params[P_SYMMETRY] == SYM_UNDEF){
       fprintf(stderr, "Error: you must specify a symmetry type (-s).\n");
+      exitFlag = 1;
+   }
+   if (params[P_BOUNDARYSYM] == SYM_ASYM){
+      fprintf(stderr, "Error: asymmetric wave searching is not supported.\n");
       exitFlag = 1;
    }
    if(previewFlag && !loadDumpFlag){
@@ -1711,7 +1826,23 @@ void checkParams(){
       exitFlag = 1;
    }
    if(initRowsFlag && loadDumpFlag){
-      fprintf(stderr, "Error: Initial rows file cannot be used when the search state is loaded from a\n       saved state.\n");
+      fprintf(stderr, "Error: initial rows file cannot be used when the search state is loaded from a\n       saved state.\n");
+      exitFlag = 1;
+   }
+   if (params[P_QBITS] <= 0){
+      fprintf(stderr, "Error: queue bits (-q) must be positive.\n");
+      exitFlag = 1;
+   }
+   if (params[P_BASEBITS] <= 0){
+      fprintf(stderr, "Error: base bits (-b) must be positive.\n");
+      exitFlag = 1;
+   }
+   if (params[P_BASEBITS] >= params[P_QBITS]){
+      fprintf(stderr, "Error: base bits (-b) must be less than queue bits (-q).\n");
+      exitFlag = 1;
+   }
+   if (params[P_HASHBITS] < 0){
+      fprintf(stderr, "Error: hash bits (-h) must be nonnegative.\n");
       exitFlag = 1;
    }
    
@@ -1728,6 +1859,22 @@ void checkParams(){
       fprintf(stderr, "Warning: Searches for speeds at or below c/5 may be slower with caching.\n         It is recommended that you disable caching (-c 0).\n");
    }
 #endif
+   if (forbiddenBirths && (params[P_SYMMETRY] == SYM_GUTTER || params[P_BOUNDARYSYM] == SYM_GUTTER)){
+      fprintf(stderr, "Warning: forbidden birth conditions cannot be checked along the gutter.\n");
+   }
+   /* Reduce values to prevent integer overflow */
+   if(params[P_QBITS] > 38 && !exitFlag){
+      fprintf(stderr, "Warning: queue bits (-q) reduced to 38.\n");
+      params[P_QBITS] = 38;      /* corresponds to a queue size of 550GB */
+      if(params[P_BASEBITS] > params[P_QBITS]){
+         fprintf(stderr, "Warning: base bits (-q) reduced to 36.\n");
+         params[P_BASEBITS] = 36;      /* corresponds to a queue size of 550GB */
+      }
+   }
+   if(params[P_HASHBITS] > 36 && !exitFlag){
+      fprintf(stderr, "Warning: hash bits (-h) reduced to 38.\n");
+      params[P_HASHBITS] = 36;   /* corresponds to a hash table size of 550GB */
+   }
    
    /* exit if there are errors */
    if(exitFlag){
@@ -1743,21 +1890,18 @@ void checkParams(){
 
 char * loadFile;
 
-void loadFail()
-{
-    printf("Load from file %s failed\n",loadFile);
+void loadFail(){
+   fprintf(stderr, "Load from file %s failed\n", loadFile);
     exit(1);
 }
 
-signed int loadInt(FILE *fp)
-{
+signed int loadInt(FILE *fp){
     signed int v;
     if (fscanf(fp,"%d\n",&v) != 1) loadFail();
     return v;
 }
 
-unsigned int loadUInt(FILE *fp)
-{
+unsigned int loadUInt(FILE *fp){
     unsigned int v;
     if (fscanf(fp,"%u\n",&v) != 1) loadFail();
     return v;
@@ -1765,15 +1909,14 @@ unsigned int loadUInt(FILE *fp)
 
 void loadParams() {
    FILE * fp;
-   int i;
+   unsigned int i;
    
    /* reset flag to prevent modification of params[P_LASTDEEP] at start of search */
    newLastDeep = 0;
    
    fp = fopen(loadFile, "r");
    if (!fp) loadFail();
-   if (loadUInt(fp) != FILEVERSION)
-   {
+   if (loadUInt(fp) != FILEVERSION){
       printf("Incompatible file version\n");
       exit(1);
    }
@@ -1798,9 +1941,10 @@ void loadState(){
    fp = fopen(loadFile, "r");
    if (!fp) loadFail();
    
+   /* Skip lines that are loaded in loadParams() */
    loadUInt(fp);                                   /* skip file version */
-   fscanf(fp, "%*[^\n]\n");                        /* skip rule */
-   fscanf(fp, "%*[^\n]\n");                        /* skip dump root */
+   if (fscanf(fp, "%*[^\n]\n") != 0) loadFail();   /* skip rule */
+   if (fscanf(fp, "%*[^\n]\n") != 0) loadFail();   /* skip dump root */
    for (i = 0; i < NUM_PARAMS; ++i) loadInt(fp);   /* skip parameters */
    
    /* Load / initialise globals */
@@ -1829,7 +1973,7 @@ void loadState(){
       if (hash == 0) printf("Unable to allocate hash table, duplicate elimination disabled\n");
    }
    
-   /* Load up BFS queue and complete compaction */
+   /* Load up BFS queue */
    qHead  = loadUInt(fp);
    qEnd   = loadUInt(fp);
    qStart = QSIZE - qEnd;
@@ -1851,7 +1995,8 @@ void loadState(){
    exit(0);
    */
    
-   deepRows = (row**)calloc(1 << (params[P_DEPTHLIMIT] + 1),sizeof(*deepRows));
+   /* Load extension rows for each queue node */
+   deepRows = (row**)calloc(1LLU << (params[P_DEPTHLIMIT] + 1),sizeof(*deepRows));
    deepRowIndices = (uint32_t*)calloc(QSIZE,sizeof(deepRowIndices));
    
    uint32_t theDeepIndex = 2;
@@ -1859,7 +2004,7 @@ void loadState(){
    
    while (fscanf(fp,"%u\n",&j) != EOF){
       if (j == 0){
-         fscanf(fp,"%u\n",&j);
+         j = loadUInt(fp);
          for (i = 0; i < j; ++i){
             deepRowIndices[deepQTail] = 1;
             ++deepQTail;
@@ -1878,6 +2023,7 @@ void loadState(){
    
    fclose(fp);
    
+   /* complete compaction */
    doCompactPart2();
    
    /* Let the user know that we got this far (suppress if splitting) */
@@ -1909,7 +2055,7 @@ void loadInitRows(char * file){
    printf("Starting search from rows in %s:\n",loadFile);
    
    for(i = 0; i < 2 * period; i++){
-      fscanf(fp,"%s",rowStr);
+      if (fscanf(fp,"%s",rowStr) != 1) loadFail();
       for(j = 0; j < width; j++){
          theRow |= ((rowStr[width - j - 1] == '.') ? 0:1) << j;
       }
@@ -1926,34 +2072,42 @@ void loadInitRows(char * file){
 
 void setDefaultParams(){
 #ifdef QSIMPLE
-   params[P_WIDTH] = WIDTH;
    params[P_PERIOD] = PERIOD;
    params[P_OFFSET] = OFFSET;
 #else
-   params[P_WIDTH] = 0;
    params[P_PERIOD] = 0;
    params[P_OFFSET] = 0;
 #endif
-   params[P_SYMMETRY] = 0;
-   params[P_REORDER] = 1;
+   params[P_WIDTH] = 0;
+   params[P_SYMMETRY] = SYM_UNDEF;
+   params[P_REORDER] = 1;     /* 0 and 2 are also valid values, but this cannot currently be set at runtime. */
    params[P_CHECKPOINT] = 0;
    params[P_BASEBITS] = 4;
    params[P_QBITS] = QBITS;
    params[P_HASHBITS] = HASHBITS;
    params[P_NUMTHREADS] = 1;
-   params[P_MINDEEP] = 0;
+   params[P_MINDEEP] = 3;
+   /* A negative value for params[P_CACHEMEM] means use that amount of  */
+   /* memory if speed > c/5 and turn off caching otherwise.  A positive */
+   /* value forces caching even if speed <= c/5.                        */
    params[P_CACHEMEM] = -1*DEFAULT_CACHEMEM;
-   params[P_MEMLIMIT] = -1;
+   params[P_MEMLIMIT] = -1;   /* negative value means no limit */
    params[P_PRINTDEEP] = 1;
    params[P_LONGEST] = 1;
    params[P_LASTDEEP] = 0;
    params[P_NUMSHIPS] = 0;
    params[P_MINEXTENSION] = 0;
+   params[P_FULLPERIOD] = 0;
+   params[P_BOUNDARYSYM] = SYM_UNDEF;
 }
 
 /* Note: currently reserving -v for potentially editing an array of extra variables */
 void parseOptions(int argc, char *argv[]){
    char *programName = argv[0];
+   if(argc <= 1){
+      usage(programName);
+      exit(0);
+   }
    while(--argc > 0){               /* read input parameters */
       if ((*++argv)[0] == '-'){
          switch ((*argv)[1]){
@@ -1970,11 +2124,14 @@ void parseOptions(int argc, char *argv[]){
                --argc;
                sscanf(*++argv, "%d", &params[P_OFFSET]);
               break;
+            case 'k': case 'K':
+               params[P_FULLPERIOD] ^= 1;
+               break;
+#endif
             case 'w': case 'W':
                --argc;
                sscanf(*++argv, "%d", &params[P_WIDTH]);
                break;
-#endif
             case 's': case 'S':
                --argc;
                switch((*++argv)[0]) {
@@ -1986,6 +2143,26 @@ void parseOptions(int argc, char *argv[]){
                      params[P_SYMMETRY] = SYM_EVEN; mode = even; break;
                   case 'g': case 'G':
                      params[P_SYMMETRY] = SYM_GUTTER; mode = gutter; break;
+                  default:
+                     fprintf(stderr, "Error: unrecognized symmetry type %s\n", *argv);
+                     fprintf(stderr, "\nUse --help for a list of available options.\n");
+                     exit(1);
+                     break;
+               }
+               break;
+            case 'o': case 'O':
+               --argc;
+               switch((*++argv)[0]) {
+                  case 'a': case 'A':
+                     params[P_BOUNDARYSYM] = SYM_ASYM; break;
+                  case 'o': case 'O':
+                     params[P_BOUNDARYSYM] = SYM_ODD; break;
+                  case 'e': case 'E':
+                     params[P_BOUNDARYSYM] = SYM_EVEN; break;
+                  case 'g': case 'G':
+                     params[P_BOUNDARYSYM] = SYM_GUTTER; break;
+                  case 'd': case 'D':
+                     params[P_BOUNDARYSYM] = SYM_UNDEF; break;
                   default:
                      fprintf(stderr, "Error: unrecognized symmetry type %s\n", *argv);
                      fprintf(stderr, "\nUse --help for a list of available options.\n");
@@ -2125,7 +2302,7 @@ void searchSetup(){
          if (hash == 0) printf("Unable to allocate hash table, duplicate elimination disabled\n");
       }
       
-      deepRows = (row**)calloc(1 << (params[P_DEPTHLIMIT] + 1),sizeof(*deepRows));
+      deepRows = (row**)calloc(1LLU << (params[P_DEPTHLIMIT] + 1),sizeof(*deepRows));
       deepRowIndices = (uint32_t*)calloc(QSIZE,sizeof(deepRowIndices));
       
       resetQ();
@@ -2136,8 +2313,14 @@ void searchSetup(){
       if(initRowsFlag) loadInitRows(initRows);
    }
    
+#ifndef QSIMPLE
+   makePhases();
+   makeSubperiodTables();
+#endif
+   
    if(previewFlag){
-      preview(1);
+      params[P_NUMSHIPS] = 0;
+      preview();
       exit(0);
    }
    
@@ -2189,9 +2372,9 @@ void searchSetup(){
       }
       
       /* nodes per file is rounded up */
-      int nodesPerFile = (totalNodes - 1) / splitNum + 1;
+      unsigned long nodesPerFile = (totalNodes - 1) / splitNum + 1;
       
-      printf("Splitting search state with %d queue nodes per file\n",nodesPerFile);
+      printf("Splitting search state with %lu queue nodes per file\n",nodesPerFile);
       
       /* save qHead and qTail, as creating the pieces will change their values */
       node fixedQHead = qHead;
@@ -2202,7 +2385,7 @@ void searchSetup(){
       free(rows);
       free(hash);
       
-      for (deepIndex = 0; deepIndex < 1 << (params[P_DEPTHLIMIT] + 1); ++deepIndex){
+      for (deepIndex = 0; deepIndex < 1LLU << (params[P_DEPTHLIMIT] + 1); ++deepIndex){
          if (deepRows[deepIndex]) free(deepRows[deepIndex]);
          deepRows[deepIndex] = 0;
       }
@@ -2262,7 +2445,7 @@ void searchSetup(){
          }
          
          /* free memory allocated in loadState() */
-         for (deepIndex = 0; deepIndex < 1 << (params[P_DEPTHLIMIT] + 1); ++deepIndex){
+         for (deepIndex = 0; deepIndex < 1LLU << (params[P_DEPTHLIMIT] + 1); ++deepIndex){
             if (deepRows[deepIndex]) free(deepRows[deepIndex]);
             deepRows[deepIndex] = 0;
          }
@@ -2272,7 +2455,6 @@ void searchSetup(){
          free(hash);
          free(deepRows);
          free(deepRowIndices);
-         
       }
       
       printf("Saved pieces in files %s%05d to %s\n",dumpRoot,firstDumpNum,dumpFile);
@@ -2286,7 +2468,7 @@ void searchSetup(){
    /* Allocate lookahead cache */
 #ifndef NOCACHE
    cachesize = 32768 ;
-   while (cachesize * sizeof(cacheentry) < 550000 * params[P_CACHEMEM])
+   while (cachesize * sizeof(cacheentry) < 550000 * (unsigned long long)params[P_CACHEMEM])
       cachesize <<= 1 ;
    memusage += sizeof(cacheentry) * (cachesize + 5) * params[P_NUMTHREADS];
    if(params[P_MEMLIMIT] >= 0 && memusage > memlimit){
@@ -2301,21 +2483,32 @@ void searchSetup(){
       cache[i] = totalCache + (cachesize + 5) * i;
 #endif
    
-   echoParams();
+   /* Generate proper rule string for printing patterns */
+   int i;
+   int j = 0;
+   int k = 1;
+   for (i = 0; i < 256 && rule[i] != '\0'; i++){
+      if (rule[i] == '~') k = 0;
+      else if (rule[i] == '/') k = 1;
+      if(k) trueRule[j++] = rule[i];
+   }
+   trueRule[j] = '\0';
    
-#ifndef QSIMPLE
-   makePhases();
-#endif
+   echoParams();
+
    fasterTable();
    makeTables();
    
    rephase();
+   
+   timeStamp();
 }
 
 void finalReport(){
+   timeStamp();
    printf("Search complete.\n\n");
    
-   printf("%d spaceship%s found.\n",numFound,(numFound == 1) ? "" : "s");
+   printf("%d %s%s found.\n",numFound,(params[P_BOUNDARYSYM] == SYM_UNDEF) ? "spaceship" : "wave",(numFound == 1) ? "" : "s");
    printf("Maximum depth reached: %d\n",longest);
    if(params[P_LONGEST] && aborting != 3){ /* aborting == 3 means we reached ship limit */
       if(patternBuf) printf("Longest partial result:\n\n%s",patternBuf);
