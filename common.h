@@ -630,24 +630,21 @@ uint16_t *makeRow(int row1, int row2) {
    
    /* bmalloc, unbmalloc, and all operations that read from or write to */
    /* theRow, rowHash, and gInd3 must be included in a critical region. */
-   uint16_t *theRow;
+   uint16_t *theRow = (uint16_t*)calloc((1+(1<<width)+good), sizeof(uint16_t)) ;
+   theRow[0] = 1 + (1 << width) ;
+   for (int row3=0; row3 < good; row3++)
+      theRow[gWork[row3]]++ ;
+   theRow[1<<width] = 0 ;
+   for (int row3=0; row3 < (1<<width); row3++)
+      theRow[row3+1] += theRow[row3] ;
+   for (int row3=good-1; row3>=0; row3--) {
+      int row4 = gWork[row3] ;
+      theRow[--theRow[row4]] = gWork2[row3] ;
+   }
+   unsigned int h = hashRow(theRow, 1+(1<<width)+good) ;
+   h &= (2 << (2 * width)) - 1 ;
    #pragma omp critical(updateTable)
    {
-      theRow = bmalloc((1+(1<<width)+good)) ;
-      for (int row3=0; row3 < 1<<width; row3++)
-         theRow[row3] = 0 ;
-      theRow[0] = 1 + (1 << width) ;
-      for (int row3=0; row3 < good; row3++)
-         theRow[gWork[row3]]++ ;
-      theRow[1<<width] = 0 ;
-      for (int row3=0; row3 < (1<<width); row3++)
-         theRow[row3+1] += theRow[row3] ;
-      for (int row3=good-1; row3>=0; row3--) {
-         int row4 = gWork[row3] ;
-         theRow[--theRow[row4]] = gWork2[row3] ;
-      }
-      unsigned int h = hashRow(theRow, 1+(1<<width)+good) ;
-      h &= (2 << (2 * width)) - 1 ;
       while (1) {
          if (rowHash[h] == -1) {
             rowHash[h] = (row1 << width) + row2 ;
@@ -657,8 +654,9 @@ uint16_t *makeRow(int row1, int row2) {
          /* lookup table. This prevents two different threads from trying to */
          /* build the same part of the lookup table.                         */
          if (memcmp(theRow, gInd3[rowHash[h]], 2*(1+(1<<width)+good)) == 0) {
+             free(theRow);
             theRow = gInd3[rowHash[h]] ;
-            unbmalloc(1+(1<<width)+good) ;
+            /* unbmalloc(1+(1<<width)+good) ; */
             break ;
          }
          h = (h + 1) & ((2 << (2 * width)) - 1) ;
