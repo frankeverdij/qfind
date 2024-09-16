@@ -71,15 +71,15 @@ int lookAhead(row *pRows, int a){
    int row11, row12, row13, row22, row23;
    int k;
    
-   getoffsetcount(pRows[a - PERIOD - OFFSET],
+   numRows11 = getoffsetcount(pRows[a - PERIOD - OFFSET],
                   pRows[a - OFFSET],
-                  pRows[a], &riStart11, &numRows11);
+                  pRows[a], &riStart11);
    if (!numRows11)
       return 0;
    
-   getoffsetcount(pRows[a - PERIOD - 2*OFFSET],
+   numRows12 = getoffsetcount(pRows[a - PERIOD - 2*OFFSET],
                   pRows[a - 2*OFFSET],
-                  pRows[a - OFFSET], &riStart12, &numRows12);
+                  pRows[a - OFFSET], &riStart12);
    
    #if 3*OFFSET >= PERIOD
       riStart13 = pRows + (a + PERIOD - 3*OFFSET);
@@ -89,9 +89,9 @@ int lookAhead(row *pRows, int a){
          (pRows[a-2*OFFSET] << width) + pRows[a-3*OFFSET]);
 #endif
    #else
-      getoffsetcount(pRows[a - PERIOD - 3*OFFSET],
+      numRows13 = getoffsetcount(pRows[a - PERIOD - 3*OFFSET],
                      pRows[a - 3*OFFSET],
-                     pRows[a - 2*OFFSET], &riStart13, &numRows13);
+                     pRows[a - 2*OFFSET], &riStart13);
 #ifndef NOCACHE
       k = getkey(riStart11, riStart12, riStart13,
          (pRows[a-2*OFFSET] << width) + pRows[a-3*OFFSET]);
@@ -106,19 +106,19 @@ int lookAhead(row *pRows, int a){
       row11 = riStart11[ri11];
       for(ri12 = 0; ri12 < numRows12; ++ri12){
          row12 = riStart12[ri12];
-         getoffsetcount(pRows[a - 2*OFFSET],
-                        row12, row11, &riStart22, &numRows22);
+         numRows22 = getoffsetcount(pRows[a - 2*OFFSET],
+                        row12, row11, &riStart22);
          if(!numRows22) continue;
          
          for(ri13 = 0; ri13 < numRows13; ++ri13){
             row13 = riStart13[ri13];
-            getoffsetcount(pRows[a - 3*OFFSET],
-                           row13, row12, &riStart23, &numRows23);
+            numRows23 = getoffsetcount(pRows[a - 3*OFFSET],
+                           row13, row12, &riStart23);
             if(!numRows23) continue;
             
             for(ri23 = 0; ri23 < numRows23; ++ri23){
                row23 = riStart23[ri23];
-               uint16_t *p = getoffset2(row13, row23);
+               uint16_t *p = getoffset(row13, row23);
                for(ri22 = 0; ri22 < numRows22; ++ri22){
                   row22 = riStart22[ri22];
                   if (p[row22+1]!=p[row22]) {
@@ -153,10 +153,10 @@ void process(node theNode)
       x = PARENT(x);
    }
    
-   getoffsetcount(pRows[currRow - 2 * PERIOD],
+   numRows = getoffsetcount(pRows[currRow - 2 * PERIOD],
                      pRows[currRow - PERIOD],
                      pRows[currRow - PERIOD + OFFSET],
-                     &riStart, &numRows);
+                     &riStart);
    
    /* we just ran dequeue() so we need to look at the previous head location */
    uint32_t deepIndex = deepRowIndices[oldDeepQHead];
@@ -234,10 +234,10 @@ int reloadDepthFirst(uint16_t startRow, uint16_t howDeep, row *pRows, uint16_t *
    memcpy(pRowsGen + startRow, pRows + 2 + pRows[1], (pRows[0] - pRows[1] + 1) * (long long)sizeof(*pRowsGen));
    
    for(currRow = startRow; currRow <= startRow + (pRows[0] - pRows[1]); ++currRow){
-      getoffsetcount(pRowsGen[currRow - 2 * PERIOD],
+      pRemainGen[currRow] = getoffsetcount(pRowsGen[currRow - 2 * PERIOD],
                   pRowsGen[currRow - PERIOD],
                   pRowsGen[currRow - PERIOD + OFFSET],
-                  &(pIndGen[currRow]), &(pRemainGen[currRow]));
+                  &(pIndGen[currRow]));
       
       pIndGen[currRow] += pRemainGen[currRow];
       
@@ -300,10 +300,10 @@ int depthFirst(node theNode, uint16_t howDeep, uint16_t **pInd, int *pRemain, ro
    
    deepRowIndices[deepQHead + theNode - qHead] = 0;
    
-   getoffsetcount(pRows[currRow - 2 * PERIOD],
+   pRemain[currRow] = getoffsetcount(pRows[currRow - 2 * PERIOD],
                   pRows[currRow - PERIOD],
                   pRows[currRow - PERIOD + OFFSET],
-                  &(pInd[currRow]), &(pRemain[currRow]));
+                  &(pInd[currRow]));
    pInd[currRow] += pRemain[currRow];
    
    for(;;){
@@ -347,10 +347,10 @@ int depthFirst(node theNode, uint16_t howDeep, uint16_t **pInd, int *pRemain, ro
          return 1;
       }
       
-      getoffsetcount(pRows[currRow - 2 * PERIOD],
+      pRemain[currRow] = getoffsetcount(pRows[currRow - 2 * PERIOD],
                      pRows[currRow - PERIOD],
                      pRows[currRow - PERIOD + OFFSET],
-                     &(pInd[currRow]), &(pRemain[currRow]));
+                     &(pInd[currRow]));
       pInd[currRow] += pRemain[currRow];
    }
 }

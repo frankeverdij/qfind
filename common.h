@@ -489,14 +489,9 @@ uint16_t *makeRow(int row1, int row2) ;
 
 /* getoffset() returns a pointer to a lookup table where further information */
 /* is found.  It is used in getoffsetcount() and in lookAhead().             */
-uint16_t *getoffset(int row12) {
-   uint16_t *r = gInd3[row12] ;
-   if (r == 0)
-      r = makeRow(row12 >> width, row12 & ((1 << width) - 1)) ;
-   return r ;
-}
-uint16_t *getoffset2(int row1, int row2) {
-   return getoffset((row1 << width) + row2) ;
+uint16_t *getoffset(const int row1, const int row2) {
+   int row12 = (row1 << width) + row2;
+   return (gInd3[row12] ? gInd3[row12] : makeRow(row1, row2)) ;
 }
 
 /* Given rows row1, row2, and row3, getoffsetcount() gives the location (p) */
@@ -507,15 +502,15 @@ uint16_t *getoffset2(int row1, int row2) {
 /*    XXXX                                                                  */
 /*                                                                          */
 /* as well as the number (n) of such rows.                                  */
-void getoffsetcount(int row1, int row2, int row3, uint16_t** p, int *n) {
-   uint16_t *theRow = getoffset2(row1, row2) ;
+int getoffsetcount(const int row1, const int row2, const int row3, uint16_t** p) {
+   uint16_t *theRow = getoffset(row1, row2) ;
    *p = theRow + theRow[row3] ;
-   *n = theRow[row3+1] - theRow[row3] ;
+   return theRow[row3+1] - theRow[row3] ;
 }
 
 /* Like getoffsetcount(), but only gives the number of rows.  Currently unused. */
 int getcount(int row1, int row2, int row3) {
-   uint16_t *theRow = getoffset2(row1, row2) ;
+   uint16_t *theRow = getoffset(row1, row2) ;
    return theRow[row3+1] - theRow[row3] ;
 }
 
