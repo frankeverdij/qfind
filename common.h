@@ -1568,7 +1568,7 @@ void doCompact(void) {
 /* ================= */
 
 #ifndef NOCACHE
-int getkey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
+int getCacheKey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
 #ifndef QSIMPLE
    if (params[P_CACHEMEM] == 0) return 0;
 #endif
@@ -1587,7 +1587,7 @@ int getkey(uint16_t *p1, uint16_t *p2, uint16_t *p3, int abn) {
    return (int) h;
 }
 
-void setkey(int h, int v) {
+void setCacheKey(int h, int v) {
 #ifndef QSIMPLE
    if (params[P_CACHEMEM])
 #endif
@@ -2132,7 +2132,7 @@ void checkGutter(void) {
    else {
       printError("gutters do not work with the given birth conditions.\n       "
                  "The forbidden birth conditions for different gutter types are\n       "
-                 "  Skew 0: B2ce4ci6i\n       "
+                 "  Skew 0: B2ci4ci6i\n       "
                  "  Skew 1: B1c2kn3ny4yz5r6i\n       "
                  "  Skew 2: B12aikn3cqr4cnyz5er6i");
    }

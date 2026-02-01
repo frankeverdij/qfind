@@ -164,7 +164,7 @@ int lookAhead(row *pRows, int a, int pPhase){
       riStart13 = pRows + (a + PERIOD - TRIPLEOFF(pPhase));
       numRows13 = 1;
    #ifndef NOCACHE
-      k = getkey(riStart11, riStart12, (uint16_t*)(gcount + riStart13[0]),
+      k = getCacheKey(riStart11, riStart12, (uint16_t*)(gcount + riStart13[0]),
          (pRows[a-DOUBLEOFF(pPhase)] << width) + pRows[a-TRIPLEOFF(pPhase)]);
    #endif
    }
@@ -180,7 +180,7 @@ int lookAhead(row *pRows, int a, int pPhase){
                      pRows[a - TRIPLEOFF(pPhase)],
                      pRows[a - DOUBLEOFF(pPhase)], &riStart13, &numRows13);
    #ifndef NOCACHE
-      k = getkey(riStart11, riStart12, riStart13,
+      k = getCacheKey(riStart11, riStart12, riStart13,
          (pRows[a-DOUBLEOFF(pPhase)] << width) + pRows[a-TRIPLEOFF(pPhase)]);
    #endif
    }
@@ -212,7 +212,7 @@ int lookAhead(row *pRows, int a, int pPhase){
                   row22 = riStart22[ri22];
                   if (p[row22+1]!=p[row22]) {
 #ifndef NOCACHE
-                     setkey(k, 1);
+                     setCacheKey(k, 1);
 #endif
                      return 1;
                   }
@@ -222,7 +222,7 @@ int lookAhead(row *pRows, int a, int pPhase){
       }
    }
 #ifndef NOCACHE
-   setkey(k, 0);
+   setCacheKey(k, 0);
 #endif
    return 0;
 }
