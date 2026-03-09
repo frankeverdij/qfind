@@ -2364,6 +2364,9 @@ void loadState(void) {
    }
    
    fclose(fp);
+
+   flip = (row*)malloc(sizeof(*flip)<<width);
+   makeFlip();
    
    /* complete compaction */
    doCompactPart2();
